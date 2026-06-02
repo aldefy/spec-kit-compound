@@ -18,7 +18,7 @@ If the user tries to skip a phase, refuse politely and explain which specific te
 
 ## Inputs you have
 
-- The user's rough description of the outcome (provided in chat after `/speckit-intent` is invoked, or asked for as the first question)
+- The user's rough description of the outcome (provided in chat after `/speckit-compound-intent` is invoked, or asked for as the first question)
 - The compound store at `docs/compound/*` if it was loaded via `/speckit-compound-load`. Use ADRs, corrections, and patterns to inform your pushback (see "Compound store interaction" below).
 
 ## Output you produce
@@ -26,7 +26,7 @@ If the user tries to skip a phase, refuse politely and explain which specific te
 - One file: `docs/intents/{kebab-case-slug}.intent.md`
 - Slug derived from the locked goal (3–5 words, lowercase, hyphenated)
 - Format: see "Output format" at the bottom of this file
-- Then offer to chain to `/speckit-expectations`
+- Then offer to chain to `/speckit-compound-expectations`
 
 ---
 
@@ -50,7 +50,7 @@ Get a bullet list. Push back on items that look like implementation details (lib
 ### Phase 4 — Out of scope
 Ask: *"What is explicitly NOT in scope? What should the implementation NOT touch, even if tempted?"*
 
-This is the guard `/speckit-intentguard` will use later. Push back if the user can't name anything — every real feature has scope boundaries; "nothing" is almost always wrong and means the user hasn't thought about it.
+This is the guard `/speckit-compound-intentguard` will use later. Push back if the user can't name anything — every real feature has scope boundaries; "nothing" is almost always wrong and means the user hasn't thought about it.
 
 ### Phase 5 — Constraints
 Ask one at a time. After each candidate, apply tests **C1–C5** and respond with verdicts.
@@ -88,7 +88,7 @@ When all phases pass:
 
 ### Phase 8 — Chain
 Ask the user (use AskUserQuestion with three options):
-- **Continue to expectations** — invoke `/speckit-expectations` next
+- **Continue to expectations** — invoke `/speckit-compound-expectations` next
 - **Stop here** — user will run later phases manually
 - **Quit** — stop the chain entirely
 
@@ -159,7 +159,7 @@ If `docs/compound/` exists and was loaded:
 
 ## What you do NOT capture in this file
 
-- **Success scenarios** — these go to `docs/expectations/{slug}.expectations.md` via `/speckit-expectations`. Compartmentation is the structural defense against the builder reward-hacking the validator's success criteria. If the user offers a success scenario during this interview, acknowledge it and say: *"That's an expectation, not part of intent. I'll park it for the expectations interview right after this."*
+- **Success scenarios** — these go to `docs/expectations/{slug}.expectations.md` via `/speckit-compound-expectations`. Compartmentation is the structural defense against the builder reward-hacking the validator's success criteria. If the user offers a success scenario during this interview, acknowledge it and say: *"That's an expectation, not part of intent. I'll park it for the expectations interview right after this."*
 - **Tech stack choices** — these go into `/speckit-plan` later. If the user names a stack, ask whether it's a hard constraint (in which case it's a C-test-failing constraint that probably belongs in Context) or just a preference (defer to /speckit-plan).
 - **Task breakdown** — that's `/speckit-tasks`. Don't pre-decompose work here.
 
@@ -219,5 +219,5 @@ created: {YYYY-MM-DD}
 1. Show the file path in chat: *"Wrote `docs/intents/{slug}.intent.md`."*
 2. Show a one-line summary: *"Goal: {goal}. {N} constraints, {N} failure conditions, {N} ADR refs."*
 3. Use AskUserQuestion to offer the chain handoff (continue / stop here / quit).
-4. If "continue": invoke `/speckit-expectations` next.
-5. If "stop here" or "quit": end the session cleanly. The user can resume later by running `/speckit-expectations` manually.
+4. If "continue": invoke `/speckit-compound-expectations` next.
+5. If "stop here" or "quit": end the session cleanly. The user can resume later by running `/speckit-compound-expectations` manually.

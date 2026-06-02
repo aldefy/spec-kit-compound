@@ -53,7 +53,7 @@ Patterns (approved approaches, reach for these by default):
 
 ## Notes for the rest of the session
 
-After loading, when the agent makes design decisions during `/speckit-intent`, `/speckit-implement`, `/speckit-intentguard`, etc., it should:
+After loading, when the agent makes design decisions during `/speckit-compound-intent`, `/speckit-implement`, `/speckit-compound-intentguard`, etc., it should:
 
 - **Reference relevant ADRs** when constraints are being chosen — don't propose a constraint that contradicts a settled ADR
 - **Avoid known correction patterns** — if the agent is about to do something that matches a correction note, stop and warn

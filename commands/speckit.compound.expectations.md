@@ -4,21 +4,21 @@ description: "Compartmented success and edge scenario capture, validator-only. W
 
 # Expectations Interview
 
-You are running an **expectations interview** — the compartmented counterpart to `/speckit-intent`. Your job is to capture user-observable success and edge scenarios that the validator (`/speckit-intentguard`) will use to decide whether the implementation is truly done.
+You are running an **expectations interview** — the compartmented counterpart to `/speckit-compound-intent`. Your job is to capture user-observable success and edge scenarios that the validator (`/speckit-compound-intentguard`) will use to decide whether the implementation is truly done.
 
 ---
 
-## Why this is a separate command from /speckit-intent
+## Why this is a separate command from /speckit-compound-intent
 
 Per IDSD's compartmentation rule, **success scenarios must not live in the same artifact the builder reads**, because LLMs reward-hack: they will optimize for the validator's checks if both come from the same file.
 
-- `/speckit-intent` captures goal + constraints + failure conditions (what the builder reads)
-- `/speckit-expectations` captures success and edge scenarios (what the validator reads)
+- `/speckit-compound-intent` captures goal + constraints + failure conditions (what the builder reads)
+- `/speckit-compound-expectations` captures success and edge scenarios (what the validator reads)
 
 In v0.2 (soft compartmentation), the same agent runs both interviews, but:
 - The two files live in **different folders** (`docs/intents/` vs `docs/expectations/`)
 - `/speckit-implement` is instructed to load **only** `docs/intents/{slug}.intent.md`, NOT the expectations file
-- `/speckit-intentguard` is instructed to load **both**
+- `/speckit-compound-intentguard` is instructed to load **both**
 
 Hard compartmentation (separate agents, encrypted evals, builder structurally unable to read the expectations file) is deferred to v0.3+ if we see evidence of gaming.
 
@@ -34,7 +34,7 @@ If the user tries to skip, refuse politely and explain which specific test would
 
 ## Inputs you have
 
-- **Required**: the corresponding intent doc at `docs/intents/{slug}.intent.md`. If it does not exist, stop and instruct the user to run `/speckit-intent` first.
+- **Required**: the corresponding intent doc at `docs/intents/{slug}.intent.md`. If it does not exist, stop and instruct the user to run `/speckit-compound-intent` first.
 - Compound store at `docs/compound/*` if loaded via `/speckit-compound-load`
 
 ## Output you produce
@@ -57,7 +57,7 @@ Read `docs/intents/{slug}.intent.md` in full. Extract:
 
 Confirm to the user: *"Loaded intent doc for `{slug}`. Goal: `{goal}`. Working from {N} in-scope items, {N} constraints, {N} failure conditions."*
 
-**Skip-when-chained.** If this command was invoked as a chain handoff from `/speckit-intent` in the same session, skip the verbose confirmation — the user just wrote the intent doc seconds ago and doesn't need it summarized back. Say briefly instead: *"Continuing from intent → drafting positive scenarios..."*
+**Skip-when-chained.** If this command was invoked as a chain handoff from `/speckit-compound-intent` in the same session, skip the verbose confirmation — the user just wrote the intent doc seconds ago and doesn't need it summarized back. Say briefly instead: *"Continuing from intent → drafting positive scenarios..."*
 
 ### Phase 1 — Positive scenarios (the golden paths)
 
@@ -176,7 +176,7 @@ If `docs/compound/` exists and was loaded:
 
 - **Scan `docs/compound/patterns/`** for relevant test patterns — if a pattern exists for "how we test dark mode" or "how we test feature flags", reference it as a starting template.
 - **Scan `docs/compound/corrections/`** for past failure scenarios that became known issues — propose edge scenarios that would catch repeats: *"Correction note from {date} flagged that {pattern} caused {issue}. Worth an edge scenario for it."*
-- **Do not contradict** the intent doc's locked constraints. If an expectation seems to require violating a constraint, flag it: *"This scenario requires X, but C{N} forbids it. Either drop the scenario or revise the constraint via `/speckit-intent` re-run."*
+- **Do not contradict** the intent doc's locked constraints. If an expectation seems to require violating a constraint, flag it: *"This scenario requires X, but C{N} forbids it. Either drop the scenario or revise the constraint via `/speckit-compound-intent` re-run."*
 
 ---
 
@@ -210,7 +210,7 @@ intent: ../intents/{slug}.intent.md
 
 # Expectations: {goal sentence from intent doc}
 
-> **Compartmentation note.** This file is consumed by `/speckit-intentguard`. It is NOT consumed by `/speckit-implement`. Do not paste scenarios from this file into builder prompts.
+> **Compartmentation note.** This file is consumed by `/speckit-compound-intentguard`. It is NOT consumed by `/speckit-implement`. Do not paste scenarios from this file into builder prompts.
 
 ## Positive scenarios
 - **E1**: {scenario in user-observable language}

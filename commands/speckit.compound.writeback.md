@@ -4,7 +4,7 @@ description: "Persist new learnings (ADRs, corrections, patterns) from the just-
 
 # Writeback to Compound Store
 
-After `/speckit-intentguard` returns PASS (or REVIEW NEEDED that a human has cleared), you persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
+After `/speckit-compound-intentguard` returns PASS (or REVIEW NEEDED that a human has cleared), you persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
 
 ---
 
@@ -19,7 +19,7 @@ Read `docs/intents/{slug}.intentguard.md`. If verdict is:
 
 **2. Scan the session for writeback candidates:**
 
-**ADR candidates** — non-obvious architectural choices made during `/speckit-intent` or `/speckit-implement`:
+**ADR candidates** — non-obvious architectural choices made during `/speckit-compound-intent` or `/speckit-implement`:
 - Library/framework selection that locks in a pattern
 - Storage / persistence approach decisions
 - API contract decisions
@@ -119,7 +119,7 @@ completed: {YYYY-MM-DD}
 
 ## Hook behavior
 
-When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-intentguard` has produced a verdict. The hook is `optional: true` — the user is prompted: *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
+When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-compound-intentguard` has produced a verdict. The hook is `optional: true` — the user is prompted: *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
 
 ---
 

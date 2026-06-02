@@ -61,7 +61,7 @@ as done)
 ```
 
 **Intent** = the left side of the diagram. What you provide.
-**Expectations** = also what you provide. SpecKit generates *task-level* expectations from your intent, but `/speckit-expectations` captures the user-level "done" boundary that the validator (not the builder) consumes.
+**Expectations** = also what you provide. SpecKit generates *task-level* expectations from your intent, but `/speckit-compound-expectations` captures the user-level "done" boundary that the validator (not the builder) consumes.
 **The harness** = runs the loop. Could be Claude Code, Copilot Workspace, Cursor, etc.
 
 **Alternative framing: ICE in IDSD.** Kapil Viren Ahuja's "Intent-Driven Software Development" (IDSD) frames this layer as **ICE — Intent, Context, Expectations**:
@@ -72,7 +72,7 @@ as done)
 | **Context** | The surround (stack, codebase, prior decisions), fed progressively | Harness |
 | **Expectations** | Success scenarios + boundary of done, compartmented from Intent | Human |
 
-The compartmentation rule from IDSD: success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. Our `/speckit-intent` and `/speckit-expectations` split implements this.
+The compartmentation rule from IDSD: success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. Our `/speckit-compound-intent` and `/speckit-compound-expectations` split implements this.
 
 **The gap SpecKit leaves:**
 SpecKit asks "what do you want to build?" but doesn't structure:
@@ -158,7 +158,7 @@ The compound store (`docs/compound/`) is version-controlled and committed. It is
 ### Intent and Expectations are separate commands (soft compartmentation, v0.2)
 Per IDSD's compartmentation principle, success scenarios must not appear in the same artifact the builder reads, because LLMs reward-hack — the builder will optimize for the scenarios the validator checks if both come from the same file.
 
-For v0.2, we ship **soft compartmentation**: separate `/speckit-intent` and `/speckit-expectations` commands writing to separate files. The builder (during `/speckit-implement`) reads the intent doc; the validator (during `/speckit-intentguard`) reads the expectations doc. Same agent, different artifacts.
+For v0.2, we ship **soft compartmentation**: separate `/speckit-compound-intent` and `/speckit-compound-expectations` commands writing to separate files. The builder (during `/speckit-implement`) reads the intent doc; the validator (during `/speckit-compound-intentguard`) reads the expectations doc. Same agent, different artifacts.
 
 Hard compartmentation (separate agents, encrypted evals, builder structurally unable to read the expectations file) is deferred until we have evidence the soft version is being gamed.
 
@@ -168,7 +168,7 @@ v0.1 drafts considered a single `/speckit-compound` command with `load` and `wri
 ### The intent + expectations docs are the gapfill input
 SpecKit generates tasks (expectations) from a feature description. But it generates primarily happy-path tasks.
 
-The intent doc's **out-of-scope** and **constraints** sections, plus the expectations doc's **negative scenarios**, are the inputs that `/speckit-gapfill` uses to generate the missing tests — constraint violation checks, scope regression checks, negative paths.
+The intent doc's **out-of-scope** and **constraints** sections, plus the expectations doc's **negative scenarios**, are the inputs that `/speckit-compound-gapfill` uses to generate the missing tests — constraint violation checks, scope regression checks, negative paths.
 
 Without these docs, gapfill has no reference to know what constraints exist or what's out of scope.
 
@@ -250,12 +250,12 @@ Existing Friends entries for reference format:
 | `/speckit-analyze` | Optional | Cross-artifact consistency check |
 | `/speckit-checklist` | Optional | Generate quality checklists |
 | `/speckit-taskstoissues` | Optional | Convert tasks to GitHub issues |
-| `/speckit-intent` | **Extension** | Goal, constraints, failure conditions (this extension) |
-| `/speckit-expectations` | **Extension** | Success scenarios, definition of done — compartmented (this extension) |
+| `/speckit-compound-intent` | **Extension** | Goal, constraints, failure conditions (this extension) |
+| `/speckit-compound-expectations` | **Extension** | Success scenarios, definition of done — compartmented (this extension) |
 | `/speckit-compound-load` | **Extension** | Load ADRs, corrections, patterns into context (this extension) |
 | `/speckit-compound-writeback` | **Extension** | Persist learnings back to compound store (this extension) |
-| `/speckit-gapfill` | **Extension** | Fill SpecKit task gaps with constraint/negative tests (this extension) |
-| `/speckit-intentguard` | **Extension** | L3 scope and constraint validation (this extension) |
+| `/speckit-compound-gapfill` | **Extension** | Fill SpecKit task gaps with constraint/negative tests (this extension) |
+| `/speckit-compound-intentguard` | **Extension** | L3 scope and constraint validation (this extension) |
 
 ---
 

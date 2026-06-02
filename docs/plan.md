@@ -9,10 +9,10 @@ A SpecKit extension that fills systematic gaps in Spec-Driven Development:
 
 | Gap | Solution |
 |---|---|
-| SpecKit doesn't capture *why* or scope boundaries | `/speckit-intent` — goal, constraints, failure conditions |
-| SpecKit fuses what-to-build with what-counts-as-done, enabling reward-hacking | `/speckit-expectations` — success scenarios, compartmented from intent |
-| SpecKit tasks miss negative cases and constraint tests | `/speckit-gapfill` — cross-references intent + expectations against tasks |
-| No validation that implementation stayed in scope | `/speckit-intentguard` — L3 intent guard before merge |
+| SpecKit doesn't capture *why* or scope boundaries | `/speckit-compound-intent` — goal, constraints, failure conditions |
+| SpecKit fuses what-to-build with what-counts-as-done, enabling reward-hacking | `/speckit-compound-expectations` — success scenarios, compartmented from intent |
+| SpecKit tasks miss negative cases and constraint tests | `/speckit-compound-gapfill` — cross-references intent + expectations against tasks |
+| No validation that implementation stayed in scope | `/speckit-compound-intentguard` — L3 intent guard before merge |
 | AI memory dies between sessions; corrections are lost | `/speckit-compound-load` and `/speckit-compound-writeback` — committed compound store, two separate commands per spec-kit convention |
 
 ---
@@ -21,20 +21,20 @@ A SpecKit extension that fills systematic gaps in Spec-Driven Development:
 
 ```
 spec-kit-compound/
-├── extension.yml                        ← manifest (dotted command names, hooks)
+├── extension.yml                              ← manifest (id: compound, dotted commands, hooks)
 ├── README.md
 ├── LICENSE
 ├── CHANGELOG.md
 └── commands/
-    ├── speckit.intent.md                ← /speckit-intent
-    ├── speckit.expectations.md          ← /speckit-expectations
-    ├── speckit.compound.load.md         ← /speckit-compound-load
-    ├── speckit.compound.writeback.md    ← /speckit-compound-writeback
-    ├── speckit.gapfill.md               ← /speckit-gapfill
-    └── speckit.intentguard.md           ← /speckit-intentguard
+    ├── speckit.compound.intent.md             ← /speckit-compound-intent
+    ├── speckit.compound.expectations.md       ← /speckit-compound-expectations
+    ├── speckit.compound.load.md               ← /speckit-compound-load
+    ├── speckit.compound.writeback.md          ← /speckit-compound-writeback
+    ├── speckit.compound.gapfill.md            ← /speckit-compound-gapfill
+    └── speckit.compound.intentguard.md        ← /speckit-compound-intentguard
 ```
 
-All 10 files to scaffold and push. Source filenames use dots (`speckit.X.Y.md`) per spec-kit convention; slash commands use hyphens (`/speckit-X-Y`). The dot→hyphen conversion happens at install time.
+All 10 files to scaffold and push. Source filenames use dots (`speckit.compound.X.md`) per spec-kit convention; slash commands use hyphens (`/speckit-compound-X`). The dot→hyphen conversion happens at install time. The `compound` namespace is required because spec-kit enforces that all extension commands live under the extension's `id` namespace.
 
 ---
 
@@ -51,7 +51,7 @@ This is what makes the system compound — every session inherits past learnings
 
 ### Step 2 — Write intent document
 ```
-/speckit-intent
+/speckit-compound-intent
 ```
 Creates `docs/intents/{feature-slug}.intent.md` with:
 - Goal (one sentence, no "and", no tools, no patterns — passes the two-implementations test)
@@ -63,14 +63,14 @@ Creates `docs/intents/{feature-slug}.intent.md` with:
 
 ### Step 2b — Write expectations document
 ```
-/speckit-expectations
+/speckit-compound-expectations
 ```
 Creates `docs/expectations/{feature-slug}.expectations.md` with:
 - Success scenarios (the "done" boundary)
 - Negative/edge scenarios
 - Limits the implementation must stay inside, written in user-recognizable terms
 
-**Compartmentation note (v0.2 — soft).** This file is consumed by `/speckit-intentguard`, not by `/speckit-implement`. The builder reads the intent doc; the validator reads the expectations doc. Same agent, separate artifacts — structural defense against reward-hacking the validator's success criteria. Hard compartmentation (separate agents, encrypted evals) is deferred to v0.3+ if we see evidence of gaming.
+**Compartmentation note (v0.2 — soft).** This file is consumed by `/speckit-compound-intentguard`, not by `/speckit-implement`. The builder reads the intent doc; the validator reads the expectations doc. Same agent, separate artifacts — structural defense against reward-hacking the validator's success criteria. Hard compartmentation (separate agents, encrypted evals) is deferred to v0.3+ if we see evidence of gaming.
 
 ### Step 3 — Run SpecKit
 ```
@@ -84,7 +84,7 @@ Standard SpecKit flow. The task list SpecKit generates IS the task-level expecta
 
 ### Step 4 — Fill gaps SpecKit missed
 ```
-/speckit-gapfill
+/speckit-compound-gapfill
 ```
 Cross-references intent doc + expectations doc against the tasks file.
 Adds missing:
@@ -104,7 +104,7 @@ Loop: work → validate → met? → merge or loop back.
 
 ### Step 6 — Intent guard before merge
 ```
-/speckit-intentguard
+/speckit-compound-intentguard
 ```
 Validation Level 3 — what most harnesses skip.
 Checks:
@@ -168,12 +168,12 @@ Before starting any task, read:
 ## Workflow for any new feature
 
 1. /speckit-compound-load — load compound store
-2. /speckit-intent — write intent doc (goal, constraints, failure conditions)
-3. /speckit-expectations — write expectations doc (success scenarios — compartmented)
+2. /speckit-compound-intent — write intent doc (goal, constraints, failure conditions)
+3. /speckit-compound-expectations — write expectations doc (success scenarios — compartmented)
 4. /speckit-specify → /speckit-plan → /speckit-tasks — SpecKit flow
-5. /speckit-gapfill — augment with missing constraint/negative tests
+5. /speckit-compound-gapfill — augment with missing constraint/negative tests
 6. /speckit-implement — run the loop
-7. /speckit-intentguard — L3 validation before merge
+7. /speckit-compound-intentguard — L3 validation before merge
 8. /speckit-compound-writeback — commit learnings back to compound store
 ```
 

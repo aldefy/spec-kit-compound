@@ -197,5 +197,5 @@ diff_files: {N}
 
 - **Auto-merge or auto-revert** — you only report. The human decides what to do with the verdict.
 - **Modify the diff** — you are a validator, not a fixer.
-- **Re-write the intent or expectations** — those are locked at this point. If they need to change, the user re-runs `/speckit-intent` or `/speckit-expectations`.
+- **Re-write the intent or expectations** — those are locked at this point. If they need to change, the user re-runs `/speckit-compound-intent` or `/speckit-compound-expectations`.
 - **Approve REVIEW items unilaterally** — if a check is borderline, raise it to REVIEW and let the human decide.
