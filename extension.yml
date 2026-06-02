@@ -1,45 +1,78 @@
 schema_version: "1.0"
 
 extension:
-  id: "spec-kit-compound"
+  id: spec-kit-compound
   name: "Spec-Kit Compound"
-  version: "0.1.0"
-  description: "Intent-driven scoping (ICE), compound engineering memory, and L3 intent guard validation for the SpecKit SDD workflow."
-  author: "Adit Lal"
-  repository: "https://github.com/aldefy/spec-kit-compound"
-  homepage: "https://github.com/aldefy/spec-kit-compound"
-  license: "MIT"
+  version: "0.2.0"
+  description: "Intent-driven scoping (ICE), compound engineering memory, and L3 intent guard validation for SpecKit's SDD workflow."
+  author: Adit Lal
+  repository: https://github.com/aldefy/spec-kit-compound
+  homepage: https://github.com/aldefy/spec-kit-compound
+  license: MIT
 
 requires:
-  speckit_version: ">=0.1.0"
+  speckit_version: ">=0.2.0"
 
 provides:
   commands:
-    - name: "speckit.intent"
-      file: "commands/intent.md"
-      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until the intent passes G1-G5, C1-C5, F1-F4 quality tests."
+    - name: speckit.intent
+      file: commands/speckit.intent.md
+      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until G1-G5, C1-C5, F1-F4 all pass."
 
-    - name: "speckit.expectations"
-      file: "commands/expectations.md"
-      description: "Compartmented success and edge scenarios for the validator (not the builder). Soft compartmentation against reward-hacking; E1-E4 rubric."
+    - name: speckit.expectations
+      file: commands/speckit.expectations.md
+      description: "Compartmented success and edge scenarios for the validator (not the builder). E1-E4 rubric. Reward-hack defense via file separation."
 
-    - name: "speckit.compound"
-      file: "commands/compound.md"
-      description: "Load and writeback subactions for the committed compound store (ADRs, corrections, patterns). The memory layer that survives across sessions, machines, and teammates."
+    - name: speckit.compound.load
+      file: commands/speckit.compound.load.md
+      description: "Load ADRs, corrections, and patterns from docs/compound/ into agent context at the start of a feature. Auto-scaffolds the directory if missing."
 
-    - name: "speckit.gapfill"
-      file: "commands/gapfill.md"
-      description: "Cross-references intent + expectations against the SpecKit-generated tasks.md; appends missing constraint, failure, and edge tests with source comments."
+    - name: speckit.compound.writeback
+      file: commands/speckit.compound.writeback.md
+      description: "Persist new ADRs, corrections, and patterns from the just-completed feature back to the compound store. Requires intent guard PASS."
 
-    - name: "speckit.intentguard"
-      file: "commands/intentguard.md"
-      description: "L3 validation: git diff vs intent out-of-scope, constraints, failure conditions, and expectations. Returns PASS / REVIEW NEEDED / BLOCKED."
+    - name: speckit.gapfill
+      file: commands/speckit.gapfill.md
+      description: "Cross-references intent + expectations against tasks.md; appends missing constraint-violation, failure-condition, OOS-regression, and edge tests."
+
+    - name: speckit.intentguard
+      file: commands/speckit.intentguard.md
+      description: "L3 validation: diff vs intent's OOS, constraints, failure conditions, and expectations scenarios. Returns PASS / REVIEW NEEDED / BLOCKED."
+
+hooks:
+  before_constitution:
+    - command: speckit.compound.load
+      optional: true
+      prompt: "Load compound store (ADRs, corrections, patterns) into context before constitution setup?"
+      description: "Pull settled decisions, past corrections, and approved patterns into the session before any new work"
+
+  before_specify:
+    - command: speckit.intent
+      optional: false
+      description: "Capture intent doc (goal, constraints, failure conditions) before generating the spec"
+    - command: speckit.expectations
+      optional: false
+      description: "Capture expectations doc (success and edge scenarios, compartmented from intent) before generating the spec"
+
+  after_tasks:
+    - command: speckit.gapfill
+      optional: false
+      description: "Augment tasks.md with constraint-violation, failure-condition, out-of-scope-regression, and edge tests derived from intent + expectations"
+
+  after_implement:
+    - command: speckit.intentguard
+      optional: false
+      description: "L3 validation gate: diff vs intent's OOS, constraints, failure conditions, and expectations. Returns PASS / REVIEW NEEDED / BLOCKED."
+    - command: speckit.compound.writeback
+      optional: true
+      prompt: "Persist learnings (new ADRs, corrections, patterns) from this feature to the compound store?"
+      description: "Writeback session learnings to docs/compound/. Only proceeds if intent guard PASS."
 
 tags:
-  - "intent-driven"
-  - "compound-engineering"
-  - "validation"
-  - "memory"
-  - "idsd"
-  - "ice"
-  - "adr"
+  - intent-driven
+  - compound-engineering
+  - validation
+  - memory
+  - idsd
+  - ice
+  - adr

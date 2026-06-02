@@ -1,4 +1,8 @@
-# /speckit.gapfill
+---
+description: "Cross-reference intent + expectations against the spec-kit-generated tasks.md; append missing constraint-violation, failure-condition, out-of-scope-regression, and edge tests with source comments."
+---
+
+# Gap-Fill Analysis
 
 You are running a **gap-fill analysis**. Your job is to cross-reference the intent doc + expectations doc against the spec-kit-generated tasks list, identify coverage gaps, and append the missing tasks to `specs/{slug}/tasks.md`.
 
@@ -82,7 +86,7 @@ Then ask (use AskUserQuestion):
 Append accepted entries. Preserve spec-kit's formatting. Add a section header before the additions:
 
 ```markdown
-## Gap-filling tasks (from /speckit.gapfill)
+## Gap-filling tasks (from /speckit-gapfill)
 <!-- Generated: {YYYY-MM-DD}. Sources: docs/intents/{slug}.intent.md, docs/expectations/{slug}.expectations.md -->
 
 - [ ] {task description} <!-- gapfill: derived from C1 -->
@@ -96,7 +100,7 @@ Append accepted entries. Preserve spec-kit's formatting. Add a section header be
 
 Show summary: *"Appended {N} tasks to specs/{slug}/tasks.md across {N} categories."*
 
-Ask: *"Continue to /speckit.implement? [yes / no]"*
+Ask: *"Continue to /speckit-implement? [yes / no]"*
 
 ---
 
@@ -105,7 +109,7 @@ Ask: *"Continue to /speckit.implement? [yes / no]"*
 This command is mostly automated. Pushback fires only when the user tries to reject a **high-risk gap**:
 
 Define high-risk gaps as:
-- **Any out-of-scope regression check** — `/speckit.intentguard` L3 will block the merge if the OOS area was touched, and you'll have to re-add this task then. Cheaper to add now.
+- **Any out-of-scope regression check** — `/speckit-intentguard` L3 will block the merge if the OOS area was touched, and you'll have to re-add this task then. Cheaper to add now.
 - **Any failure condition with no covering task** — the failure condition was explicitly declared in the intent and is now untestable in CI.
 
 If the user rejects a high-risk gap addition, push back once:
@@ -137,5 +141,5 @@ If `docs/compound/corrections/` exists, scan for past gap-misses that became bug
 
 - **Rewrite existing tasks** — only append
 - **Add tasks unrelated to the intent or expectations** — every addition must trace to a specific source (C, F, OOS, E, or a named cross-cutting concern)
-- **Run the tasks** — that's `/speckit.implement`
-- **Validate after the fact** — that's `/speckit.intentguard`
+- **Run the tasks** — that's `/speckit-implement`
+- **Validate after the fact** — that's `/speckit-intentguard`

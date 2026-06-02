@@ -2,7 +2,7 @@
 
 This directory is the **committed memory** of the codebase — the layer that makes spec-kit-compound *compound*.
 
-Every feature contributes back via `/speckit.compound writeback`. Every feature inherits the accumulated store via `/speckit.compound load`. Over time, the store outweighs any static constitution document you could write upfront.
+Every feature contributes back via `/speckit-compound-writeback`. Every feature inherits the accumulated store via `/speckit-compound-load`. Over time, the store outweighs any static constitution document you could write upfront.
 
 ---
 
@@ -23,11 +23,11 @@ Architecture decisions made during real features. Each file:
 - Frontmatter with status (Accepted / Superseded)
 - Context → Decision → Consequences → **Rule for AI** (one-line directive for future agents)
 
-The "Rule for AI" line is what `/speckit.compound load` injects into context. Future agents are instructed not to re-debate these decisions.
+The "Rule for AI" line is what `/speckit-compound-load` injects into context. Future agents are instructed not to re-debate these decisions.
 
 ### `corrections/`
 
-Captured during `/speckit.implement` when the user pushes back on the agent. Each file:
+Captured during `/speckit-implement` when the user pushes back on the agent. Each file:
 
 - Date-prefixed slug: `2026-06-02-no-css-filters.md`
 - "What happened" — the exchange, verbatim if possible
@@ -52,12 +52,12 @@ Patterns require explicit user approval at writeback; they are the most opiniona
 ## Lifecycle
 
 ```
-/speckit.compound load                  →  reads everything here, injects into agent context
+/speckit-compound-load                  →  reads everything here, injects into agent context
                                             (at the start of every feature)
 
 [feature work happens — intent, plan, implement, intentguard]
 
-/speckit.compound writeback             →  drafts new ADRs/corrections/patterns from session
+/speckit-compound-writeback             →  drafts new ADRs/corrections/patterns from session
                                             user approves each, accepted ones land here
                                             (at the end of every feature, after intentguard PASS)
 ```
@@ -79,6 +79,6 @@ The compound store is **committed to the repo**. It survives all of the above an
 
 ## Bootstrapping
 
-This directory is created automatically by `/speckit.compound load` on first invocation in a project. You do not need to pre-populate it. The store grows naturally from the first feature onward.
+This directory is created automatically by `/speckit-compound-load` on first invocation in a project. You do not need to pre-populate it. The store grows naturally from the first feature onward.
 
 The first feature contributes 0–2 ADRs at most. By feature 10, expect a non-trivial set. By feature 50, the store contains more applied wisdom than any constitution doc you would have written upfront.

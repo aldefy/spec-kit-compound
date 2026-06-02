@@ -1,22 +1,26 @@
-# /speckit.expectations
+---
+description: "Compartmented success and edge scenario capture, validator-only. Writes to docs/expectations/ separately from the intent doc; reward-hack defense via file separation."
+---
 
-You are running an **expectations interview** — the compartmented counterpart to `/speckit.intent`. Your job is to capture user-observable success and edge scenarios that the validator (`/speckit.intentguard`) will use to decide whether the implementation is truly done.
+# Expectations Interview
+
+You are running an **expectations interview** — the compartmented counterpart to `/speckit-intent`. Your job is to capture user-observable success and edge scenarios that the validator (`/speckit-intentguard`) will use to decide whether the implementation is truly done.
 
 ---
 
-## Why this is a separate command from /speckit.intent
+## Why this is a separate command from /speckit-intent
 
 Per IDSD's compartmentation rule, **success scenarios must not live in the same artifact the builder reads**, because LLMs reward-hack: they will optimize for the validator's checks if both come from the same file.
 
-- `/speckit.intent` captures goal + constraints + failure conditions (what the builder reads)
-- `/speckit.expectations` captures success and edge scenarios (what the validator reads)
+- `/speckit-intent` captures goal + constraints + failure conditions (what the builder reads)
+- `/speckit-expectations` captures success and edge scenarios (what the validator reads)
 
-In v0.1 (soft compartmentation), the same agent runs both interviews, but:
+In v0.2 (soft compartmentation), the same agent runs both interviews, but:
 - The two files live in **different folders** (`docs/intents/` vs `docs/expectations/`)
-- `/speckit.implement` is instructed to load **only** `docs/intents/{slug}.intent.md`, NOT the expectations file
-- `/speckit.intentguard` is instructed to load **both**
+- `/speckit-implement` is instructed to load **only** `docs/intents/{slug}.intent.md`, NOT the expectations file
+- `/speckit-intentguard` is instructed to load **both**
 
-Hard compartmentation (separate agents, encrypted evals, builder structurally unable to read the expectations file) is deferred to v0.2+ if we see evidence of gaming.
+Hard compartmentation (separate agents, encrypted evals, builder structurally unable to read the expectations file) is deferred to v0.3+ if we see evidence of gaming.
 
 ---
 
@@ -30,8 +34,8 @@ If the user tries to skip, refuse politely and explain which specific test would
 
 ## Inputs you have
 
-- **Required**: the corresponding intent doc at `docs/intents/{slug}.intent.md`. If it does not exist, stop and instruct the user to run `/speckit.intent` first.
-- Compound store at `docs/compound/*` if loaded via `/speckit.compound load`
+- **Required**: the corresponding intent doc at `docs/intents/{slug}.intent.md`. If it does not exist, stop and instruct the user to run `/speckit-intent` first.
+- Compound store at `docs/compound/*` if loaded via `/speckit-compound-load`
 
 ## Output you produce
 
@@ -53,7 +57,7 @@ Read `docs/intents/{slug}.intent.md` in full. Extract:
 
 Confirm to the user: *"Loaded intent doc for `{slug}`. Goal: `{goal}`. Working from {N} in-scope items, {N} constraints, {N} failure conditions."*
 
-**Skip-when-chained.** If this command was invoked as a chain handoff from `/speckit.intent` in the same session, skip the verbose confirmation — the user just wrote the intent doc seconds ago and doesn't need it summarized back. Say briefly instead: *"Continuing from intent → drafting positive scenarios..."*
+**Skip-when-chained.** If this command was invoked as a chain handoff from `/speckit-intent` in the same session, skip the verbose confirmation — the user just wrote the intent doc seconds ago and doesn't need it summarized back. Say briefly instead: *"Continuing from intent → drafting positive scenarios..."*
 
 ### Phase 1 — Positive scenarios (the golden paths)
 
@@ -114,7 +118,7 @@ Apply the user's choice before writing. Then, when scenarios are within cap and 
 ### Phase 4 — Chain
 
 Ask the user (use AskUserQuestion with three options):
-- **Continue to /speckit.specify** — invoke spec-kit's `/speckit.specify` next, prefilled with goal + in-scope from the intent doc
+- **Continue to /speckit-specify** — invoke spec-kit's `/speckit-specify` next, prefilled with goal + in-scope from the intent doc
 - **Stop here** — user will run later phases manually
 - **Quit** — stop the chain entirely
 
@@ -172,7 +176,7 @@ If `docs/compound/` exists and was loaded:
 
 - **Scan `docs/compound/patterns/`** for relevant test patterns — if a pattern exists for "how we test dark mode" or "how we test feature flags", reference it as a starting template.
 - **Scan `docs/compound/corrections/`** for past failure scenarios that became known issues — propose edge scenarios that would catch repeats: *"Correction note from {date} flagged that {pattern} caused {issue}. Worth an edge scenario for it."*
-- **Do not contradict** the intent doc's locked constraints. If an expectation seems to require violating a constraint, flag it: *"This scenario requires X, but C{N} forbids it. Either drop the scenario or revise the constraint via `/speckit.intent` re-run."*
+- **Do not contradict** the intent doc's locked constraints. If an expectation seems to require violating a constraint, flag it: *"This scenario requires X, but C{N} forbids it. Either drop the scenario or revise the constraint via `/speckit-intent` re-run."*
 
 ---
 
@@ -190,7 +194,7 @@ If `docs/compound/` exists and was loaded:
 
 - **Constraints, goal, failure conditions** — those live in the intent doc; don't duplicate.
 - **Implementation details** — colors, file paths, function names, library choices. If the user offers these, redirect: *"That's a design choice for the builder. The expectation should be the user-observable outcome, not the mechanism."*
-- **Task breakdown** — that's `/speckit.tasks`.
+- **Task breakdown** — that's `/speckit-tasks`.
 
 ---
 
@@ -206,7 +210,7 @@ intent: ../intents/{slug}.intent.md
 
 # Expectations: {goal sentence from intent doc}
 
-> **Compartmentation note.** This file is consumed by `/speckit.intentguard`. It is NOT consumed by `/speckit.implement`. Do not paste scenarios from this file into builder prompts.
+> **Compartmentation note.** This file is consumed by `/speckit-intentguard`. It is NOT consumed by `/speckit-implement`. Do not paste scenarios from this file into builder prompts.
 
 ## Positive scenarios
 - **E1**: {scenario in user-observable language}
@@ -232,4 +236,4 @@ intent: ../intents/{slug}.intent.md
 
 1. Show the file path in chat: *"Wrote `docs/expectations/{slug}.expectations.md`."*
 2. Show a one-line summary: *"{N} positive scenarios, {N} edge scenarios, all E1–E4 ✓."*
-3. Use AskUserQuestion to offer the chain handoff (continue to /speckit.specify / stop here / quit).
+3. Use AskUserQuestion to offer the chain handoff (continue to /speckit-specify / stop here / quit).

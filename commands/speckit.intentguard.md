@@ -1,4 +1,8 @@
-# /speckit.intentguard
+---
+description: "L3 validation: git diff vs intent's out-of-scope, constraints, failure conditions, and expectations scenarios. Returns PASS / REVIEW NEEDED / BLOCKED with a detailed report."
+---
+
+# Intent Guard Validation
 
 You are running the **L3 intent guard** — the validation that most harnesses skip. Your job is to decide whether the implementation actually stayed within the declared intent and expectations, beyond just "tests pass and build is clean."
 
@@ -114,7 +118,7 @@ Write `docs/intents/{slug}.intentguard.md` using the format below.
 
 Show the verdict in chat with the level of urgency it warrants:
 
-- **PASS**: *"Verdict: PASS. Safe to merge. Run `/speckit.compound writeback` to persist learnings before merging."*
+- **PASS**: *"Verdict: PASS. Safe to merge. Run `/speckit-compound-writeback` to persist learnings before merging."*
 - **REVIEW NEEDED**: *"Verdict: REVIEW NEEDED. {N} items need human review (see `docs/intents/{slug}.intentguard.md`). Do not merge until reviewed."*
 - **BLOCKED**: *"Verdict: BLOCKED. {N} violations:"* — list each violation with the required fix.
 
@@ -168,7 +172,7 @@ diff_files: {N}
 ## Recommendations
 {If BLOCKED: list specific violations and the required fix for each}
 {If REVIEW: list ambiguous items needing human eyes}
-{If PASS: confirm safe to merge; recommend /speckit.compound writeback before merge}
+{If PASS: confirm safe to merge; recommend /speckit-compound-writeback before merge}
 ```
 
 ---
@@ -193,5 +197,5 @@ diff_files: {N}
 
 - **Auto-merge or auto-revert** — you only report. The human decides what to do with the verdict.
 - **Modify the diff** — you are a validator, not a fixer.
-- **Re-write the intent or expectations** — those are locked at this point. If they need to change, the user re-runs `/speckit.intent` or `/speckit.expectations`.
+- **Re-write the intent or expectations** — those are locked at this point. If they need to change, the user re-runs `/speckit-intent` or `/speckit-expectations`.
 - **Approve REVIEW items unilaterally** — if a check is borderline, raise it to REVIEW and let the human decide.

@@ -17,7 +17,7 @@ Repo: https://github.com/github/spec-kit
 
 **What it actually is:**
 - A `specify` CLI that installs prompt template files into your project
-- Slash commands: `/speckit.constitution` → `/speckit.specify` → `/speckit.clarify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`
+- Slash commands: `/speckit-constitution` → `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`
 - These are markdown prompt files the agent reads and executes — no API surface, no library
 
 **What it does well:**
@@ -33,14 +33,14 @@ Repo: https://github.com/github/spec-kit
 
 **Known limitations in SpecKit's own templates:**
 
-**P1. The auto-fill trap.** SpecKit's `/speckit.specify` template instructs the agent to *"make informed guesses,"* use *"common patterns"* to *"fill gaps,"* and caps it at *"Maximum 3 [NEEDS CLARIFICATION] markers."* Where the description goes silent, the agent invents the goal — and the tool limits how often it has to admit it is guessing. This converts spec ambiguity directly into unsupervised model choices.
+**P1. The auto-fill trap.** SpecKit's `/speckit-specify` template instructs the agent to *"make informed guesses,"* use *"common patterns"* to *"fill gaps,"* and caps it at *"Maximum 3 [NEEDS CLARIFICATION] markers."* Where the description goes silent, the agent invents the goal — and the tool limits how often it has to admit it is guessing. This converts spec ambiguity directly into unsupervised model choices.
 
 **P2. Internal contradictions across templates.** SpecKit's manifesto declares test-first development *"NON-NEGOTIABLE."* Its task template, shipped in the same repo in the same week, says *"Tests are OPTIONAL, only include them if explicitly requested."* Its implement template says *"Follow the TDD approach."* A goal-seeking model handed three contradictory rules picks one and improvises — the exact behavior the rigid method was supposed to prevent.
 
 These are not bugs in our extension scope, but they explain why intent doc + expectations doc + gapfill are needed: they are the structural defense against templates that silently hedge.
 
 **The key insight:**
-The `/speckit.tasks` output IS the "expectations" node in the Activated Thinker agentic loop model. SpecKit is the tool that generates the right side of the intent/expectations diagram.
+The `/speckit-tasks` output IS the "expectations" node in the Activated Thinker agentic loop model. SpecKit is the tool that generates the right side of the intent/expectations diagram.
 
 ---
 
@@ -61,7 +61,7 @@ as done)
 ```
 
 **Intent** = the left side of the diagram. What you provide.
-**Expectations** = also what you provide. SpecKit generates *task-level* expectations from your intent, but `/speckit.expectations` captures the user-level "done" boundary that the validator (not the builder) consumes.
+**Expectations** = also what you provide. SpecKit generates *task-level* expectations from your intent, but `/speckit-expectations` captures the user-level "done" boundary that the validator (not the builder) consumes.
 **The harness** = runs the loop. Could be Claude Code, Copilot Workspace, Cursor, etc.
 
 **Alternative framing: ICE in IDSD.** Kapil Viren Ahuja's "Intent-Driven Software Development" (IDSD) frames this layer as **ICE — Intent, Context, Expectations**:
@@ -72,7 +72,7 @@ as done)
 | **Context** | The surround (stack, codebase, prior decisions), fed progressively | Harness |
 | **Expectations** | Success scenarios + boundary of done, compartmented from Intent | Human |
 
-The compartmentation rule from IDSD: success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. Our `/speckit.intent` and `/speckit.expectations` split implements this.
+The compartmentation rule from IDSD: success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. Our `/speckit-intent` and `/speckit-expectations` split implements this.
 
 **The gap SpecKit leaves:**
 SpecKit asks "what do you want to build?" but doesn't structure:
@@ -116,9 +116,9 @@ Each feature run writes back learnings (corrections, patterns, ADRs) to the comp
 The next feature loads that store before starting.
 Over time: fewer loop iterations, fewer corrections, faster merge.
 
-In v0.1 we expose this as a single `/speckit.compound` command with two subactions:
-- `/speckit.compound load` — pull store into agent context at the start of a feature
-- `/speckit.compound writeback` — persist learnings after intentguard passes
+In v0.2 we expose this as two separate commands (spec-kit's extension system does not support subactions):
+- `/speckit-compound-load` — pull store into agent context at the start of a feature
+- `/speckit-compound-writeback` — persist learnings after intentguard passes
 
 ---
 
@@ -128,13 +128,13 @@ They map onto specific parts of the Activated Thinker / ICE diagram:
 
 | Concept | Role in the loop |
 |---|---|
-| Compound store | `pull context` step — loaded before every loop iteration via `/speckit.compound load` |
+| Compound store | `pull context` step — loaded before every loop iteration via `/speckit-compound-load` |
 | Intent doc | `INTENT` node — what you provide on the left (goal + constraints + failure conditions) |
 | Expectations doc | `EXPECTATIONS` node — what you provide on the right (success scenarios, compartmented) |
 | SpecKit tasks | Task-level expectations the harness loops against |
 | SpecKit implement | The harness — runs work → validate → loop |
 | Intentguard | Validates the `met?` decision beyond just tests (L3) |
-| Compound writeback | Updates compound store after loop exits, via `/speckit.compound writeback` |
+| Compound writeback | Updates compound store after loop exits, via `/speckit-compound-writeback` |
 
 **The summary in one sentence:**
 We are automating SpecKit with smarter inputs (intent + expectations layer, compartmented), making its outputs more complete (gapfill), and making the whole system compound over time (compound engineering store).
@@ -155,20 +155,20 @@ SpecKit/Claude Code store agent memory locally. This breaks across sessions, mac
 
 The compound store (`docs/compound/`) is version-controlled and committed. It is treated as a first-class repo artifact, the same way ADRs are — because that is exactly what it is.
 
-### Intent and Expectations are separate commands (soft compartmentation, v0.1)
+### Intent and Expectations are separate commands (soft compartmentation, v0.2)
 Per IDSD's compartmentation principle, success scenarios must not appear in the same artifact the builder reads, because LLMs reward-hack — the builder will optimize for the scenarios the validator checks if both come from the same file.
 
-For v0.1, we ship **soft compartmentation**: separate `/speckit.intent` and `/speckit.expectations` commands writing to separate files. The builder (during `/speckit.implement`) reads the intent doc; the validator (during `/speckit.intentguard`) reads the expectations doc. Same agent, different artifacts.
+For v0.2, we ship **soft compartmentation**: separate `/speckit-intent` and `/speckit-expectations` commands writing to separate files. The builder (during `/speckit-implement`) reads the intent doc; the validator (during `/speckit-intentguard`) reads the expectations doc. Same agent, different artifacts.
 
 Hard compartmentation (separate agents, encrypted evals, builder structurally unable to read the expectations file) is deferred until we have evidence the soft version is being gamed.
 
-### Compound load and writeback are subactions of one command
-Earlier drafts had `/speckit.compound` (load) and `/speckit.writeback` (writeback) as separate commands. They are two halves of the same mechanism — exposed as `/speckit.compound load` and `/speckit.compound writeback` to match the actual semantics and stay closer to Every's `/ce-compound` plugin shape.
+### Compound load and writeback are two separate commands (spec-kit convention)
+v0.1 drafts considered a single `/speckit-compound` command with `load` and `writeback` subactions, matching Every's `/ce-compound` shape. When we ran the first live install test in v0.2, we discovered spec-kit's extension system does not support subactions — each slash command must be its own file (the bundled git extension exposes `speckit.git.commit`, `.feature`, `.initialize`, `.remote`, `.validate` as five separate commands, not one with subactions). We split accordingly: `/speckit-compound-load` and `/speckit-compound-writeback` are two halves of one mechanism, registered separately. The compartmentation and semantics are unchanged; only the surface shape differs.
 
 ### The intent + expectations docs are the gapfill input
 SpecKit generates tasks (expectations) from a feature description. But it generates primarily happy-path tasks.
 
-The intent doc's **out-of-scope** and **constraints** sections, plus the expectations doc's **negative scenarios**, are the inputs that `/speckit.gapfill` uses to generate the missing tests — constraint violation checks, scope regression checks, negative paths.
+The intent doc's **out-of-scope** and **constraints** sections, plus the expectations doc's **negative scenarios**, are the inputs that `/speckit-gapfill` uses to generate the missing tests — constraint violation checks, scope regression checks, negative paths.
 
 Without these docs, gapfill has no reference to know what constraints exist or what's out of scope.
 
@@ -241,21 +241,21 @@ Existing Friends entries for reference format:
 
 | Command | Phase | What it does |
 |---|---|---|
-| `/speckit.constitution` | Init | Create project governing principles |
-| `/speckit.specify` | Spec | Generate spec from feature description |
-| `/speckit.clarify` | Spec | Clarify underspecified areas |
-| `/speckit.plan` | Plan | Generate technical implementation plan |
-| `/speckit.tasks` | Tasks | Generate task breakdown (= task-level expectations) |
-| `/speckit.implement` | Implement | Execute tasks via agentic loop |
-| `/speckit.analyze` | Optional | Cross-artifact consistency check |
-| `/speckit.checklist` | Optional | Generate quality checklists |
-| `/speckit.taskstoissues` | Optional | Convert tasks to GitHub issues |
-| `/speckit.intent` | **Extension** | Goal, constraints, failure conditions (this extension) |
-| `/speckit.expectations` | **Extension** | Success scenarios, definition of done — compartmented (this extension) |
-| `/speckit.compound load` | **Extension** | Load ADRs, corrections, patterns into context (this extension) |
-| `/speckit.compound writeback` | **Extension** | Persist learnings back to compound store (this extension) |
-| `/speckit.gapfill` | **Extension** | Fill SpecKit task gaps with constraint/negative tests (this extension) |
-| `/speckit.intentguard` | **Extension** | L3 scope and constraint validation (this extension) |
+| `/speckit-constitution` | Init | Create project governing principles |
+| `/speckit-specify` | Spec | Generate spec from feature description |
+| `/speckit-clarify` | Spec | Clarify underspecified areas |
+| `/speckit-plan` | Plan | Generate technical implementation plan |
+| `/speckit-tasks` | Tasks | Generate task breakdown (= task-level expectations) |
+| `/speckit-implement` | Implement | Execute tasks via agentic loop |
+| `/speckit-analyze` | Optional | Cross-artifact consistency check |
+| `/speckit-checklist` | Optional | Generate quality checklists |
+| `/speckit-taskstoissues` | Optional | Convert tasks to GitHub issues |
+| `/speckit-intent` | **Extension** | Goal, constraints, failure conditions (this extension) |
+| `/speckit-expectations` | **Extension** | Success scenarios, definition of done — compartmented (this extension) |
+| `/speckit-compound-load` | **Extension** | Load ADRs, corrections, patterns into context (this extension) |
+| `/speckit-compound-writeback` | **Extension** | Persist learnings back to compound store (this extension) |
+| `/speckit-gapfill` | **Extension** | Fill SpecKit task gaps with constraint/negative tests (this extension) |
+| `/speckit-intentguard` | **Extension** | L3 scope and constraint validation (this extension) |
 
 ---
 

@@ -1,82 +1,14 @@
-# /speckit.compound
+---
+description: "Persist new learnings (ADRs, corrections, patterns) from the just-completed feature back to the compound store. Requires intent guard PASS first."
+---
 
-You manage the **compound store** at `docs/compound/`. Two subactions:
+# Writeback to Compound Store
 
-- `/speckit.compound load` — pull ADRs, corrections, and patterns into the agent's context at the start of a feature
-- `/speckit.compound writeback` — persist new learnings from the just-completed feature back into the store
-
-Pick the subaction from the user's invocation. If no subaction is specified, ask:
-
-*"Subaction? [load / writeback]"*
+After `/speckit-intentguard` returns PASS (or REVIEW NEEDED that a human has cleared), you persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
 
 ---
 
-## Subaction: load
-
-### Purpose
-Inject the durable, cross-feature memory of this codebase into the current session's context. Settled decisions, past mistakes, and approved patterns should constrain everything the agent does in the rest of the session.
-
-### What to do
-
-**1. Detect or create the compound store.**
-
-If `docs/compound/` does not exist, create the scaffold:
-
-```
-docs/compound/
-├── README.md         (explains the structure)
-├── adr/              (empty)
-├── corrections/      (empty)
-└── patterns/         (empty)
-```
-
-Then tell the user: *"Compound store initialized at `docs/compound/`. Empty for now — it will fill over the next few features via `/speckit.compound writeback`."*
-
-**2. Read all files** in `docs/compound/adr/`, `docs/compound/corrections/`, and `docs/compound/patterns/`.
-
-**3. Inject a context summary** at the start of the agent's working memory:
-
-```
-COMPOUND STORE LOADED
-
-ADRs (settled decisions, do not re-debate):
-- ADR-001 {title} — Rule for AI: {one-liner}
-- ADR-002 {title} — Rule for AI: {one-liner}
-...
-
-Corrections (past mistakes, do not repeat):
-- {date}-{slug}: {derived rule}
-...
-
-Patterns (approved approaches, reach for these by default):
-- {slug}: {one-line description, when to use}
-...
-```
-
-**4. Confirm to user**:
-
-*"Compound store loaded: {N} ADRs, {N} corrections, {N} patterns. Settled decisions will be respected; known corrections will be avoided; patterns will be reached for during the rest of this session."*
-
-### Notes for the rest of the session
-
-After loading, when the agent makes design decisions during `/speckit.intent`, `/speckit.implement`, `/speckit.intentguard`, etc., it should:
-
-- **Reference relevant ADRs** when constraints are being chosen — don't propose a constraint that contradicts a settled ADR
-- **Avoid known correction patterns** — if the agent is about to do something that matches a correction note, stop and warn
-- **Reach for established patterns** by default rather than inventing fresh approaches
-
-### Re-loading after context compaction
-
-If the session's context is compacted by the harness, the compound store summary may be dropped. The user can re-run `/speckit.compound load` to restore it. Future versions may add a hook to auto-restore.
-
----
-
-## Subaction: writeback
-
-### Purpose
-After `/speckit.intentguard` returns PASS (or REVIEW NEEDED that the human has cleared), persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
-
-### What to do
+## What to do
 
 **1. Verify intent guard passed.**
 
@@ -87,13 +19,13 @@ Read `docs/intents/{slug}.intentguard.md`. If verdict is:
 
 **2. Scan the session for writeback candidates:**
 
-**ADR candidates** — non-obvious architectural choices made during `/speckit.intent` or `/speckit.implement`:
+**ADR candidates** — non-obvious architectural choices made during `/speckit-intent` or `/speckit-implement`:
 - Library/framework selection that locks in a pattern
 - Storage / persistence approach decisions
 - API contract decisions
 - Cross-cutting decisions (auth, error handling, logging, theming) that affect future features
 
-**Correction candidates** — moments where the user pushed back on the agent during `/speckit.implement`:
+**Correction candidates** — moments where the user pushed back on the agent during `/speckit-implement`:
 - *"No, don't use X, use Y because Z"*
 - *"Wrong — the convention here is W"*
 - Repeated agent mistakes in the same session
@@ -185,9 +117,15 @@ completed: {YYYY-MM-DD}
 
 ---
 
+## Hook behavior
+
+When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-intentguard` has produced a verdict. The hook is `optional: true` — the user is prompted: *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
+
+---
+
 ## Tool choices
 
-- **Read** for scanning compound store and session history
+- **Read** for scanning session history and intent guard verdict
 - **Write** for new compound files
 - **Edit** for updating intent doc status (frontmatter only)
 - **AskUserQuestion** for per-draft accept/edit/reject/defer
@@ -199,4 +137,4 @@ completed: {YYYY-MM-DD}
 - **Auto-create ADRs without user approval** — every ADR draft must be approved
 - **Auto-elevate patterns** — patterns require explicit user approval; corrections can auto-capture without approval if the correction was made by the user mid-session
 - **Modify existing ADRs** — if a decision changes, create a new ADR that supersedes the old one (don't edit the old; the historical record matters)
-- **Re-load the store mid-session** — load happens once at the start of a feature; if compaction drops it, the user can re-run `/speckit.compound load`
+- **Write back if intent guard is BLOCKED** — failure modes don't contribute to compound learning until resolved
