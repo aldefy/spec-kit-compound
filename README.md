@@ -12,11 +12,11 @@ Five new commands that wrap the vanilla SpecKit workflow:
 
 | Command | Phase | Adds |
 |---|---|---|
-| `/speckit-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
-| `/speckit-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
+| `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
+| `/speckit-compound-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
 | `/speckit-compound-load` | Start of feature | Reads committed ADRs / corrections / patterns into agent context |
-| `/speckit-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
-| `/speckit-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
+| `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
+| `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
 | `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
 
 ---
@@ -39,14 +39,14 @@ specify extension add --from https://github.com/aldefy/spec-kit-compound/archive
 
 ```
 /speckit-compound-load        # NEW — pull past ADRs/corrections/patterns into context
-/speckit-intent               # NEW — interview-driven goal, constraints, failure conditions
-/speckit-expectations         # NEW — success scenarios (validator-only)
+/speckit-compound-intent               # NEW — interview-driven goal, constraints, failure conditions
+/speckit-compound-expectations         # NEW — success scenarios (validator-only)
 /speckit-specify              # vanilla — paste intent's goal + in-scope here
 /speckit-plan                 # vanilla
 /speckit-tasks                # vanilla
-/speckit-gapfill              # NEW — add constraint-violation + negative tests to tasks.md
+/speckit-compound-gapfill              # NEW — add constraint-violation + negative tests to tasks.md
 /speckit-implement            # vanilla
-/speckit-intentguard          # NEW — L3 gate before merge
+/speckit-compound-intentguard          # NEW — L3 gate before merge
 /speckit-compound-writeback   # NEW — commit learnings from this run
 ```
 
@@ -59,7 +59,7 @@ load → intent → expectations → [specify, plan, tasks] → gapfill → impl
 ```
 
 The two surfaces:
-- **Standard mode** — call `/speckit-intent` once; it chains the rest with checkpoints. You only answer the interview and approve a couple of "commit?" prompts.
+- **Standard mode** — call `/speckit-compound-intent` once; it chains the rest with checkpoints. You only answer the interview and approve a couple of "commit?" prompts.
 - **Power-user mode** — call each command individually for surgical re-runs (e.g., revise just the expectations).
 
 ---
@@ -76,8 +76,8 @@ SpecKit is excellent at generating specs and driving the agentic implementation 
 
 This extension fixes each:
 
-1. `/speckit-intent` runs an **interview** that refuses to terminate until the intent passes a strict quality rubric (G1–G5 for goal, C1–C5 for constraints, F1–F4 for failure conditions). No silent gap-filling, no "informed guesses."
-2. `/speckit-expectations` writes success scenarios to a **separate file** the builder doesn't read — soft compartmentation against reward-hacking. The validator (`/speckit-intentguard`) reads it; the builder (`/speckit-implement`) does not.
+1. `/speckit-compound-intent` runs an **interview** that refuses to terminate until the intent passes a strict quality rubric (G1–G5 for goal, C1–C5 for constraints, F1–F4 for failure conditions). No silent gap-filling, no "informed guesses."
+2. `/speckit-compound-expectations` writes success scenarios to a **separate file** the builder doesn't read — soft compartmentation against reward-hacking. The validator (`/speckit-compound-intentguard`) reads it; the builder (`/speckit-implement`) does not.
 3. `/speckit-compound-load` / `writeback` make the agent's memory a **committed, version-controlled** artifact under `docs/compound/`, similar to Architecture Decision Records but extended for AI-specific learnings (corrections, patterns).
 
 For the full design rationale and the IDSD framing, see [`docs/ref.md`](docs/ref.md).
