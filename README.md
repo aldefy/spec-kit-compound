@@ -67,7 +67,7 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 
 ## What this gives you
 
-Five new commands that wrap the vanilla SpecKit workflow:
+**Six commands you type during a feature** that wrap the vanilla SpecKit workflow:
 
 | Command | Phase | Adds |
 |---|---|---|
@@ -78,6 +78,13 @@ Five new commands that wrap the vanilla SpecKit workflow:
 | `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
 | `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
 
+**Plus infrastructure** (run once per project / never typed by hand during a feature):
+
+| Command | When | What |
+|---|---|---|
+| `/speckit-compound-install-hooks` | One-time, per project | Installs the v0.3+ Claude Code `PreToolUse` hook that blocks Write/Edit on documented past mistakes (opt-in, see [tool-level enforcement](#v03-tool-level-enforcement-opt-in) below) |
+| `/speckit-compound-require-intent` | Auto-fires `before_specify` | Gate hook (v0.2.2+) — refuses to let `/speckit-specify` proceed if no intent doc exists. Shell-script wrapper; dispatches reliably under SpecKit's hook executor. |
+
 ---
 
 ## Install
@@ -87,10 +94,16 @@ Local dev:
 specify extension add --dev /path/to/spec-kit-compound
 ```
 
-Once published:
+Latest tagged release:
 ```bash
-specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.2.0.zip
+specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
 ```
+
+After install, **one-time per project**, opt into the v0.3+ tool-level hook:
+```
+/speckit-compound-install-hooks
+```
+(See [tool-level enforcement](#v03-tool-level-enforcement-opt-in) for what this adds.)
 
 ---
 
@@ -147,11 +160,31 @@ After the run (or any partial run):
 
 A ✗ per step means that step was skipped or didn't write its artifact — type it manually.
 
+### v0.3+ tool-level enforcement (opt-in)
+
+In addition to the slash-command chain above, v0.3 adds a **Claude Code `PreToolUse` hook layer** that runs on every Write/Edit — regardless of whether SpecKit is in the loop. Install once per project with `/speckit-compound-install-hooks`. After install:
+
+- Every agent Write/Edit checks the proposed file path + content against `docs/compound/corrections/*.md`
+- If any correction with a `paths:` glob matching the file path **and** `match:` regex matching the content fires, the tool call is blocked (exit 2) with structured stderr: correction file path + matched rule + one-line context
+- The agent reads the stderr and adjusts its plan rather than proceeding
+- Two bypass mechanisms: per-file `// compound-allow: <correction-slug>` comment (audit trail in diff) or `COMPOUND_BYPASS=1` env var (session-wide sledgehammer)
+
+This is the **two-layer enforcement** model:
+
+| Layer | Trigger | Mechanism | Since |
+|---|---|---|---|
+| **L1** | User types `/speckit-specify` | SpecKit `before_specify` gate refuses without an intent doc | v0.2.2 |
+| **L2** | Agent attempts Write/Edit | Claude Code `PreToolUse` hook refuses on correction match | v0.3 |
+
+L2 catches everything L1 catches, plus everything L1 misses (the user who skips SpecKit entirely and codes directly with the agent).
+
+See [`docs/compound/CORRECTIONS-SCHEMA.md`](docs/compound/CORRECTIONS-SCHEMA.md) for the v0.3+ correction schema (frontmatter fields `paths:`, `match:`, `rule:`, `context:`), gotchas (POSIX ERE only — no `\s`, watch double-quoted YAML escapes), and a worked example.
+
 ---
 
 ## Why this exists
 
-SpecKit is excellent at generating specs and driving the agentic implementation loop, but it leaves three systematic gaps:
+SpecKit is excellent at generating specs and driving the agentic implementation loop, but it leaves four systematic gaps:
 
 1. **It doesn't separate intent from spec.** Goals, constraints, and failure conditions get fused into one document. SpecKit's own `/speckit-specify` template instructs the agent to *"make informed guesses"* and *"fill gaps"*, capped at *"Maximum 3 [NEEDS CLARIFICATION] markers"* — converting spec ambiguity directly into unsupervised model choices.
 
@@ -159,11 +192,14 @@ SpecKit is excellent at generating specs and driving the agentic implementation 
 
 3. **It doesn't persist memory across sessions.** Claude Code's memory files live locally, not in the project's `.claude` folder under version control. New sessions, new machines, and new teammates start with zero context.
 
+4. **Even when memory is persisted, it's passive.** ADR-style notes and AI correction records are loaded as context but the agent can ignore them. The same mistake gets repeated, the same architectural decision gets re-debated. The store doesn't *enforce* anything.
+
 This extension fixes each:
 
 1. `/speckit-compound-intent` runs an **interview** that refuses to terminate until the intent passes a strict quality rubric (G1–G5 for goal, C1–C5 for constraints, F1–F4 for failure conditions). No silent gap-filling, no "informed guesses."
 2. `/speckit-compound-expectations` writes success scenarios to a **separate file** the builder doesn't read — soft compartmentation against reward-hacking. The validator (`/speckit-compound-intentguard`) reads it; the builder (`/speckit-implement`) does not.
 3. `/speckit-compound-load` / `writeback` make the agent's memory a **committed, version-controlled** artifact under `docs/compound/`, similar to Architecture Decision Records but extended for AI-specific learnings (corrections, patterns).
+4. **v0.3+ adds a Claude Code `PreToolUse` hook** that turns the compound store into **active enforcement**. When the agent tries to Write/Edit a file that matches a documented past mistake, the tool call is blocked at the moment of the attempt — before any code is written. Two bypass mechanisms (per-file comment + session env var) keep the discipline overridable when the user knows what they're doing.
 
 For the full design rationale and the IDSD framing, see [`docs/ref.md`](docs/ref.md).
 For the implementation and launch plan, see [`docs/plan.md`](docs/plan.md).
@@ -189,14 +225,23 @@ For the design rationale behind each, see [`docs/hooks-research.md`](docs/hooks-
 
 ## Project status
 
-**v0.2 — early, conventions aligned.** The extension is functional and now matches real spec-kit conventions (hyphenated slash commands, dotted source filenames, hooks-based chain automation). Battle-testing still pending.
+**v0.3.1 — active enforcement, smoke-tested.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and the v0.3 PreToolUse correction-enforcement hook is verified end-to-end (6/6 smoke tests pass). Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
 
-- Soft compartmentation only (separate files in separate folders; same agent reads both, with the implement command instructed not to load expectations). Hard compartmentation (separate agents, encrypted evals) is deferred to v0.3+ if evidence of gaming emerges.
-- No integration tests against a real SpecKit installation yet.
-- Roadmap:
-  - Battle-test on 2–3 real features (Travv World, Equal AI, aditlal.dev)
-  - Submit to SpecKit's [Community Friends](https://github.github.io/spec-kit/community/friends.html) page
-  - Apply for verified extension status in the [SpecKit catalog](https://github.com/github/spec-kit/blob/main/extensions/EXTENSION-PUBLISHING-GUIDE.md)
+What's verified:
+- Live install in a real spec-kit-initialized project (`specify init . --integration claude` → `specify extension add <path> --dev` → all 8 commands register, gate hook merges into `.specify/extensions.yml` cleanly alongside the bundled `git` extension)
+- v0.2.2 `before_specify` gate hook fires correctly under Claude Code (shell-script wrapper pattern)
+- v0.3 `PreToolUse` correction-enforcement hook: 6 scenarios verified — match blocks with structured stderr; non-match allows; subdir paths match the `**/*.ext` glob; both bypass mechanisms (`// compound-allow:` comment + `COMPOUND_BYPASS=1` env var) work
+- Static validation (`scripts/validate.sh`) — 30/30 checks pass
+
+What's not yet verified:
+- Real-feature end-to-end run (intent → spec → plan → tasks → gapfill → implement → intentguard → writeback) on a production codebase. The chain shape is proven via paper tests + the retrofit run; the full feature run is the next milestone.
+- Multi-CLI support (Codex CLI, Cursor, Gemini CLI) — see [Roadmap](#roadmap)
+- Hard compartmentation (separate agents, encrypted evals) — deferred to v0.4+ if evidence of reward-hacking emerges with the soft (file-separation) version
+
+Known limitations:
+- Soft compartmentation only. Same agent reads both intent and expectations docs; the separation is enforced by file location and by `/speckit-implement`'s prompt instructions, not by structural isolation.
+- v0.3 PreToolUse hook is Claude Code only. Other CLIs use the same shell-script contract but different settings file paths — ports planned for v0.4+.
+- Pre-v0.3 corrections (markdown body only, no frontmatter) load as context but are not actively enforced until upgraded to the v0.3 schema.
 
 ---
 

@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/.scratch/
+
+# Python (if anyone adds tooling)
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Node (if anyone adds tooling)
+node_modules/
+package-lock.json
+
+# Backups left by tools
+*.bak
+*.tmp
+*.tmp.*
+
+# OS junk
+Thumbs.db
+Desktop.ini
+
+# Extension test artifacts (transient)
+.specify/extensions/.backup/

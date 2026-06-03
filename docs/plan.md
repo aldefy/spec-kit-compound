@@ -203,7 +203,7 @@ Before starting any task, read:
 ## Installation (once published)
 
 ```bash
-specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.2.0.zip
+specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
 ```
 
 Local dev:
