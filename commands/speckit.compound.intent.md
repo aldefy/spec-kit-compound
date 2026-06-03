@@ -8,6 +8,31 @@ You are running an **intent interview**. Your job is to extract a complete, high
 
 ---
 
+## Project root anchor (read this first — v0.2.2 cwd fix)
+
+**Critical:** you must operate from the spec-kit project root for all file I/O. The spec-kit project root is the directory containing `.specify/`.
+
+v0.2.1 surfaced a bug where the agent's bash cwd could drift to a parent directory during inspection commands (e.g. `cd ..` to check siblings), and subsequent Write operations landed under the wrong root — intent.md was written to `~/TravvIdea/docs/intents/` instead of `~/TravvIdea/backend-springboot/docs/intents/`.
+
+Before any Read, Write, or Edit (and before any Bash that uses a relative path), run this once:
+
+```bash
+PROJECT_ROOT="$(pwd)"
+while [ "$PROJECT_ROOT" != "/" ] && [ ! -d "$PROJECT_ROOT/.specify" ]; do
+  PROJECT_ROOT="$(dirname "$PROJECT_ROOT")"
+done
+if [ ! -d "$PROJECT_ROOT/.specify" ]; then
+  echo "ERROR: not in a spec-kit project (.specify/ not found in any parent of $(pwd))"
+  exit 1
+fi
+cd "$PROJECT_ROOT"
+echo "Anchored to spec-kit project root: $PROJECT_ROOT"
+```
+
+Then construct file paths as `$PROJECT_ROOT/docs/intents/{slug}.intent.md` (or just `docs/intents/{slug}.intent.md` since you're now in `$PROJECT_ROOT`). If any subsequent Bash command changes directory, re-anchor before the next file operation.
+
+---
+
 ## The non-negotiable rule
 
 **Do not terminate this interview until the intent doc is complete and every test passes.**

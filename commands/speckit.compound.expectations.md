@@ -8,6 +8,25 @@ You are running an **expectations interview** — the compartmented counterpart 
 
 ---
 
+## Project root anchor (read this first — v0.2.2 cwd fix)
+
+**Critical:** operate from the spec-kit project root for all file I/O. The project root is the directory containing `.specify/`.
+
+Before any Read, Write, or Edit:
+
+```bash
+PROJECT_ROOT="$(pwd)"
+while [ "$PROJECT_ROOT" != "/" ] && [ ! -d "$PROJECT_ROOT/.specify" ]; do
+  PROJECT_ROOT="$(dirname "$PROJECT_ROOT")"
+done
+[ ! -d "$PROJECT_ROOT/.specify" ] && { echo "ERROR: not in a spec-kit project"; exit 1; }
+cd "$PROJECT_ROOT"
+```
+
+All file paths in this prompt (`docs/intents/...`, `docs/expectations/...`) are relative to `$PROJECT_ROOT`. Re-anchor after any `cd` in a subsequent Bash command.
+
+---
+
 ## Why this is a separate command from /speckit-compound-intent
 
 Per IDSD's compartmentation rule, **success scenarios must not live in the same artifact the builder reads**, because LLMs reward-hack: they will optimize for the validator's checks if both come from the same file.

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-06-03
+
+Two real bugs from the v0.2.1 retrofit run, plus the re-introduction of a hook that actually fires.
+
+### Fixed
+
+- **Working-directory drift bug (CRITICAL).** v0.2.1's retrofit run wrote `intent.md` and `expectations.md` to `~/TravvIdea/docs/intents/` instead of `~/TravvIdea/backend-springboot/docs/intents/` — the agent's bash cwd drifted to the parent directory during an inspection command and subsequent Write operations landed under the wrong root. The eval script reported all artifacts missing even though they existed (just one directory up). Added an explicit **Project root anchor** section at the top of `speckit.compound.intent.md` and `speckit.compound.expectations.md` instructing the agent to walk up from cwd to find `.specify/`, `cd` to it, and re-anchor after any subsequent `cd` in a Bash command.
+
+### Added
+
+- **`commands/speckit.compound.require-intent.md`** — a shell-script wrapper command that runs `.specify/extensions/compound/scripts/bash/require-intent.sh`. Refuses to allow `/speckit-specify` to proceed if `docs/intents/` is empty or missing.
+- **`scripts/bash/require-intent.sh`** — the actual gate script. Walks up to find the spec-kit project root, checks `docs/intents/` for any `*.intent.md` file, exits 0 if at least one exists or 1 with a clear message otherwise.
+- **`hooks:` block back in `extension.yml`** — but only **one** hook this time: `before_specify: speckit.compound.require-intent` (mandatory). This is the **script-runner pattern** that bundled `git`'s hooks use (and which DO dispatch under Claude Code, verified). The agent-prompt hook pattern that v0.2.0 tried (and v0.2.1 removed) silently no-ops; the script-runner gate fires reliably.
+- **`scripts/validate.sh`** — static validation of the extension repo. Checks: `extension.yml` parses, `id: compound`, all referenced command files exist with frontmatter, no orphan dotted slash references in markdown, scripts executable, and **every hook-registered command points to a shell-script-running command file (not an interactive prompt)**. The last check would have caught v0.2.0's silent-noop bug before install.
+
+### Changed
+
+- **`extension.yml`** version bumped to `0.2.2`. New gate command added to `provides.commands`. New single-entry `hooks:` block.
+
+### Notes
+
+- **Why one hook came back:** discipline enforcement through *gating* (refuse to proceed until intent doc exists) is achievable with a shell-script hook because the hook's job is a deterministic check, not an interactive interview. Discipline enforcement through *chaining* (auto-run the intent interview before specify) still requires agent-prompt hook dispatch, which spec-kit's executor doesn't do. v0.2.2 gives us gating; the chain remains manual (or auto-dispatched in-prompt via Phase 8 handoffs from v0.2.1).
+- **The cwd anchor is defensive.** Most of the time the agent's cwd matches the project root, and the anchor block is a no-op. The bug surfaced because the agent's bash inspection commands changed directory mid-session. Anchoring is cheap and prevents the recurrence.
+- **The validate.sh static check is your pre-flight before pushing.** Run `./scripts/validate.sh` from the repo root; if it fails, don't push. It would have caught all three of v0.2.0's pivots (naming, hooks-as-list, namespace) before install.
+
+[0.2.2]: https://github.com/aldefy/spec-kit-compound/releases/tag/v0.2.2
+
+---
+
 ## [0.2.1] — 2026-06-03
 
 **Two discoveries from the first live run in `~/TravvIdea/backend-springboot/`:**
