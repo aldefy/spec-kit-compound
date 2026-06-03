@@ -58,9 +58,17 @@ Mental shortcut:
 load → intent → expectations → [specify, plan, tasks] → gapfill → implement → intentguard → writeback
 ```
 
-The two surfaces:
-- **Standard mode** — call `/speckit-compound-intent` once; it chains the rest with checkpoints. You only answer the interview and approve a couple of "commit?" prompts.
-- **Power-user mode** — call each command individually for surgical re-runs (e.g., revise just the expectations).
+**Type each command yourself, in order.** The chain is manual.
+
+Earlier drafts wired automatic chaining via `before_*` hooks in `extension.yml`. Spec-kit's hook system dispatches *shell-script* hooks cleanly (like the bundled `git` extension's branch-creation script) but does not dispatch *agent-prompt* hooks like ours — the agent reads `EXECUTE_COMMAND` as descriptive text and continues with the parent command. v0.2.1 drops the misleading hooks; you drive the order.
+
+After running through the chain (or any subset of it), verify each artifact landed:
+
+```bash
+./scripts/check-chain-fired.sh <feature-slug>
+```
+
+A ✗ per step means that step was skipped — type it manually.
 
 ---
 

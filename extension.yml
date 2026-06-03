@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: compound
   name: "Spec-Kit Compound"
-  version: "0.2.0"
+  version: "0.2.1"
   description: "Intent-driven scoping (ICE), compound engineering memory, and L3 intent guard validation for SpecKit's SDD workflow."
   author: Adit Lal
   repository: https://github.com/aldefy/spec-kit-compound
@@ -17,7 +17,7 @@ provides:
   commands:
     - name: speckit.compound.intent
       file: commands/speckit.compound.intent.md
-      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until G1-G5, C1-C5, F1-F4 all pass. Chains to /speckit-compound-expectations on completion."
+      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until G1-G5, C1-C5, F1-F4 all pass. Suggests /speckit-compound-expectations on completion."
 
     - name: speckit.compound.expectations
       file: commands/speckit.compound.expectations.md
@@ -39,27 +39,23 @@ provides:
       file: commands/speckit.compound.intentguard.md
       description: "L3 validation: diff vs intent's OOS, constraints, failure conditions, and expectations scenarios. Returns PASS / REVIEW NEEDED / BLOCKED. Suggests /speckit-compound-writeback on PASS."
 
-hooks:
-  before_constitution:
-    command: speckit.compound.load
-    optional: true
-    prompt: "Load compound store (ADRs, corrections, patterns) into context before constitution setup?"
-    description: "Pull settled decisions, past corrections, and approved patterns into the session before any new work"
-
-  before_specify:
-    command: speckit.compound.intent
-    optional: false
-    description: "Capture intent doc (goal, constraints, failure conditions), then chain to expectations doc, both before generating the spec"
-
-  after_tasks:
-    command: speckit.compound.gapfill
-    optional: false
-    description: "Augment tasks.md with constraint-violation, failure-condition, out-of-scope-regression, and edge tests derived from intent + expectations"
-
-  after_implement:
-    command: speckit.compound.intentguard
-    optional: false
-    description: "L3 validation gate: diff vs intent's OOS, constraints, failure conditions, and expectations. Returns PASS / REVIEW NEEDED / BLOCKED. Suggests writeback on PASS."
+# Note: no `hooks:` block as of v0.2.1.
+#
+# v0.2.0 registered four before_*/after_* hooks pointing at our agent-prompt
+# commands. They installed cleanly into the merged .specify/extensions.yml,
+# but spec-kit's hook executor under Claude Code does not dispatch slash-
+# command hooks (only shell-script hooks like the bundled git extension's).
+# The hooks silently no-op'd, so /speckit-specify generated vanilla specs
+# without ever invoking /speckit-compound-intent.
+#
+# Until upstream support for agent-prompt hook dispatch lands, users type
+# the chain manually (see README cheat sheet) and verify with
+# scripts/check-chain-fired.sh after the run.
+#
+# v0.2.2 may introduce a single shell-script gate hook that blocks
+# /speckit-specify if no intent doc exists — this would use the same
+# pattern git's hooks use (which DO fire) but for gating rather than
+# chaining.
 
 tags:
   - intent-driven

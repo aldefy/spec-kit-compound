@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-06-03
+
+Live-run discovery: spec-kit's hook system dispatches **shell-script** hooks (like the bundled `git` extension's branch-creation script) cleanly, but does **not** dispatch **agent-prompt** hooks like ours under Claude Code. Our hooks installed correctly into `.specify/extensions.yml` but were silently ignored at run time — the user ran `/speckit-specify`, the spec generated in vanilla shape, and no intent/expectations docs were created.
+
+### Removed
+
+- **`hooks:` block in `extension.yml`** — the four hook registrations (`before_constitution`, `before_specify`, `after_tasks`, `after_implement`) installed correctly but never executed under Claude Code. Removing them stops silently misleading users into expecting automatic chaining.
+
+### Added
+
+- **`scripts/check-chain-fired.sh`** — post-flight eval. After running `/speckit-specify` through `/speckit-implement` (or any partial chain), run `./scripts/check-chain-fired.sh <slug>` to see a ✓/✗ per chain step. Each ✗ tells you which command was skipped and needs to be typed manually. Exit code 1 if any artifact is missing.
+
+### Changed
+
+- **README** — replaced the "Standard mode (chained) / Power-user mode" framing with **"Type each command yourself, in order."** Explains why hooks don't work and points to `scripts/check-chain-fired.sh` for verification.
+- **`extension.yml`** — version bumped to `0.2.1`. Comment block added in place of the removed `hooks:` section explaining what was tried and why it was removed.
+- **Command descriptions in `extension.yml`** — `speckit.compound.intent` now says "Suggests `/speckit-compound-expectations` on completion" rather than "Chains to" (chain is in the user's hands, not the agent's).
+
+### Notes
+
+- v0.2.2 may introduce a single **shell-script gate hook** on `before_specify` that fails with a clear message if `docs/intents/{slug}.intent.md` does not exist. This would use the same pattern git's hooks use (which DO fire) but for gating rather than chaining — enforcing the discipline by refusing to let `/speckit-specify` proceed without an intent doc. Deferred until v0.2.1 is verified in real use.
+- Upstream issue to file: spec-kit's hook executor should dispatch agent-prompt hooks under Claude Code (and other agent harnesses) the same way it dispatches shell-script hooks. Without this, extensions like ours that ship prompt-based commands cannot use the hook system at all.
+
+### Verification
+
+Re-installing v0.2.1 in `~/TravvIdea/backend-springboot/`:
+```bash
+specify extension remove compound
+specify extension add /Users/aditlal/Documents/Projects/spec-kit-compound --dev
+```
+
+After the next `/speckit-specify`, run:
+```bash
+./scripts/check-chain-fired.sh <slug>
+```
+
+Expect all four ✗ because the chain is now explicitly manual. Type each missing command in order to flip them to ✓.
+
+[0.2.1]: https://github.com/aldefy/spec-kit-compound/releases/tag/v0.2.1
+
+---
+
 ## [0.2.0] — 2026-06-02
 
 Rework of v0.1.0 to match real spec-kit conventions, discovered during the first live install test against a fresh `specify init` project.
