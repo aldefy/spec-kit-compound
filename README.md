@@ -208,18 +208,57 @@ For the implementation and launch plan, see [`docs/plan.md`](docs/plan.md).
 
 ## Roadmap
 
-Tracked direction beyond v0.3:
+Tracked direction beyond v0.3.
 
-- **v0.3.1+ — sibling tool-level gates** (other 3 hook designs from `docs/hooks-research.md`):
-  - `active-out-of-scope` — block any Write/Edit to a file path declared out-of-scope in the active intent doc
-  - `active-intent-existence` — block any Write under `src/` or `app/` when no intent doc exists for the current feature
-  - `active-complexity-gate` — block any Write whose proposed function exceeds cyclomatic complexity threshold
-- **v0.4+ — multi-CLI portability** for the tool-level gates: Codex CLI (`~/.codex/config`), Cursor 1.7+ (`beforeReadFile`, `afterFileEdit`), Gemini CLI (`.gemini/settings.json` with `BeforeTool` matcher). The bash hook scripts themselves are CLI-agnostic; only the settings translation differs.
-- **v0.5+ — server-side enforcement**: `.git/hooks/pre-commit` template and a GitHub Action template wrapping `scripts/check-chain-fired.sh`, for belt-and-braces enforcement when the agent runs outside a harness with hook support (raw API calls, CI bots, etc.).
-- **Pre-v0.3 correction migration helper**: a one-shot command that walks existing corrections and prompts the user to add the v0.3+ frontmatter (`paths:`, `match:`, `rule:`, `context:`). Out-of-scope for v0.3 per the intent doc; revisit when there's real volume of pre-v0.3 corrections in the wild.
-- **SpecKit Friends listing + extension catalog submission**: after 2–3 successful real-feature runs.
+### v0.3.1+ — sibling tool-level gates
 
-For the design rationale behind each, see [`docs/hooks-research.md`](docs/hooks-research.md) and [`docs/intents/active-corrections.intent.md`](docs/intents/active-corrections.intent.md).
+Other 3 hook designs from `docs/hooks-research.md`:
+
+- `active-out-of-scope` — block any Write/Edit to a file path declared out-of-scope in the active intent doc
+- `active-intent-existence` — block any Write under `src/` or `app/` when no intent doc exists for the current feature
+- `active-complexity-gate` — block any Write whose proposed function exceeds cyclomatic complexity threshold
+
+### v0.4 — multi-model orchestration, structured outputs, drift
+
+- **Multi-model orchestration** — Codex as a first-class subprocess. Phase config routes tools per phase (e.g. CC plans, Codex adversarially verifies, CC executes, Codex reviews). Cross-vendor verification breaks self-preferential bias structurally: Claude reviewing Claude shares training distribution; Codex reviewing Claude doesn't.
+- **Structured expectation outputs** — JSON-schema-typed expectations instead of free-form markdown. Insight from translating SRE skills to dynamic workflows: the schema is what forces the synthesizer to defer claims (emit `candidates`) so a separate verifier can adjudicate. Prose can ask for structural separation; only schema enforces it.
+- **CLAUDE.md auto-distillation** (`/speckit.compound.distill`) — promotes a shipped feature's convention constraints from `expectations.md` into project-level CLAUDE.md rules. Each feature compounds its learned conventions into the next — the literal "compound" in compound engineering.
+- **Adversarial verification as a formal phase** — not implicit. Inputs: intent + plan + codebase. Output: structured drift report. Configurable drift threshold gate halts execution above the threshold.
+- **PR-time drift check** — CI workflow template that loads relevant `intent.md` constraints on every PR touching a feature area, adversarially checks whether constraints still hold, comments on the PR if drift is detected.
+
+### v0.4+ — multi-CLI portability
+
+For the tool-level gates. The bash hook scripts themselves are CLI-agnostic; only the settings translation differs.
+
+- Codex CLI (`~/.codex/config`)
+- Cursor 1.7+ (`beforeReadFile`, `afterFileEdit`)
+- Gemini CLI (`.gemini/settings.json` with `BeforeTool` matcher)
+
+### v0.5 — server-side enforcement
+
+`.git/hooks/pre-commit` template and a GitHub Action template wrapping `scripts/check-chain-fired.sh`, for belt-and-braces enforcement when the agent runs outside a harness with hook support (raw API calls, CI bots, etc.).
+
+### v0.5+ — multi-repo + compound infrastructure
+
+- **Multi-repo workspace** — root-intent → per-repo children → cross-repo boundary verification at API contracts and shared schemas. Workspace shape: e.g. KMP app + backend + CMS as one feature, three plans, one root intent.
+- **Drift-audit scheduled workflow** — weekly run that walks every shipped feature's spec, adversarially asks "does this still hold?", produces a backlog of violations ranked by severity.
+- **Decision-log knowledge base** — after each ship, write `.claude/feature-knowledge/{feature}/decisions.md` capturing the "why" behind chosen constraints. Future AI sessions read this before touching the feature.
+- **Orchestrator script** — `compound.workflow.js` running the full pipeline (brainstorm → classify → per-repo fan-out → plan → cross-plan coherence → adversarial verify → gate → execute → review → integration review → synthesize → PR) with explicit gates.
+- **Eval framework** — tests that the verifier catches what it should. Without this we can't measure whether v0.4 changes are actually improvements.
+
+### Other
+
+- **Pre-v0.3 correction migration helper** — one-shot command that walks existing corrections and prompts the user to add the v0.3+ frontmatter (`paths:`, `match:`, `rule:`, `context:`). Out-of-scope for v0.3 per the intent doc; revisit when there's real volume of pre-v0.3 corrections in the wild.
+- **SpecKit Friends listing + extension catalog submission** — after 2–3 successful real-feature runs.
+
+### Open architecture questions (resolve before v0.4)
+
+- **Intent capture path** — `/speckit.compound.intent` vs `superpowers:brainstorming`. Currently overlapping. Unify (delegate intent capture to the skill), keep distinct (`intent.md` as the spec-kit-compound artifact), or compose (brainstorming produces a draft, `intent.md` formalizes)?
+- **Spec file format** — free-form markdown (today) vs frontmatter + machine-readable constraint IDs. Affects every downstream consumer (verifier, distiller, drift-check).
+- **Per-phase model + token budget** — global config, per-workflow config, or both? How does it interact with per-phase model routing from multi-model orchestration?
+- **Codex invocation surface** — subprocess (`codex exec`) vs HTTP (OpenAI SDK directly). Subprocess inherits Codex's harness/skills; HTTP is more portable but loses harness benefits.
+
+For the design rationale behind the v0.3.1+ gates, see [`docs/hooks-research.md`](docs/hooks-research.md) and [`docs/intents/active-corrections.intent.md`](docs/intents/active-corrections.intent.md).
 
 ---
 
