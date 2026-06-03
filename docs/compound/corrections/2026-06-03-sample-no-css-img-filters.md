@@ -3,7 +3,7 @@ slug: 2026-06-03-sample-no-css-img-filters
 paths:
   - "**/*.css"
   - "**/*.scss"
-match: "img[^{]*\\{[^}]*filter:\\s*(brightness|invert|grayscale)"
+match: "filter:[[:space:]]*(brightness|invert|grayscale)"
 rule: "Do not apply CSS filter properties (brightness/invert/grayscale) to img selectors."
 context: "Past mistake (Ghost dark mode v1, March 2026): filter: brightness(0.8) on .post img caused color shifts on macOS Safari and a 12% drop in image quality on AMD GPUs. Use a darker page background or overlay div instead."
 ---

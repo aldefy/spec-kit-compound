@@ -38,7 +38,7 @@ context: "Past mistake: filter: brightness(0.8) on img was used to dim images in
 |---|---|---|---|
 | `slug` | yes | string | Unique identifier. Used in the bypass comment `// compound-allow: <slug>` and in stderr citations. Typically `{YYYY-MM-DD}-{short-name}` matching the filename without `.md`. |
 | `paths` | yes | array of glob strings | The hook only runs the regex on writes whose target file path matches at least one of these globs. Use `**/*.ext` for "any file with extension". Empty array = never matches. |
-| `match` | yes | string (regex) | Extended POSIX regex (`grep -E` syntax). If this regex matches anywhere in the proposed file content, the correction fires. Escape special chars per shell-quoting rules; the YAML parser will pass the value through to `grep -E` verbatim. |
+| `match` | yes | string (regex) | Extended POSIX regex (`grep -E` syntax). If this regex matches anywhere in the proposed file content, the correction fires. **Three gotchas**: (1) **POSIX ERE only** — use `[[:space:]]` not `\s`, `[[:digit:]]` not `\d`, `[[:alpha:]]` not `\w`. PCRE shortcuts don't work (`\s` matches literal `s`). (2) **Avoid backslashes inside double-quoted YAML strings** — the YAML→bash→grep pipeline doesn't process YAML escapes, so `\\(` becomes literal `\\(` which grep parses as backslash + unbalanced paren. Use single-quoted YAML (`'...\(...'`) or just drop unnecessary escapes. (3) Test with `echo "<content>" \| grep -E "<regex>"` before committing the correction. |
 | `rule` | yes | string | One-line directive shown in the hook's stderr block message under "Rule:". This is what the agent will read and adjust its plan around. Keep it imperative and short. |
 | `context` | yes | string | One-line background shown under "Context:". Tell the agent *why* the rule exists — past incident, performance trap, policy reason. |
 
@@ -136,7 +136,7 @@ paths:
   - "**/*.css"
   - "**/*.scss"
   - "content/themes/**/*.css"
-match: "img[^{]*\\{[^}]*filter:\\s*(brightness|invert|grayscale)"
+match: "filter:[[:space:]]*(brightness|invert|grayscale)"
 rule: "Do not apply CSS filter properties (brightness/invert/grayscale) to img selectors."
 context: "Past mistake (Ghost dark mode v1, March 2026): filter: brightness(0.8) on .post img caused color shifts on macOS Safari and a 12% drop in image quality on AMD GPUs. Use a darker page background or overlay div instead."
 ---

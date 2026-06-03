@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-06-03
+
+Hotfix. v0.3.0 shipped with four real bugs found during the live smoke test against the sample correction. All four are now fixed and verified end-to-end: the hook correctly blocks (exit 2) on matches, correctly allows (exit 0) on non-matches, honors both bypass mechanisms, and the structured stderr message is exactly the C3-specified format.
+
+### Fixed
+
+- **Multi-line YAML array parsing.** The v0.3.0 hook only handled inline form (`paths: ["a", "b"]`); block form (`paths:\n  - "a"\n  - "b"`) silently failed because the `paths:` field extracted an empty string and the correction was marked malformed. Added explicit awk-based block-form parser that runs when the inline-form sed returns empty. Both YAML forms now work.
+- **`set -u` + empty bash array crash.** The "emit warnings" loop dereferenced `${WARNINGS[@]}` while `set -u` was active and the array was empty. On bash 3.2 (macOS default) this errors with "unbound variable". Guarded the loop with `if [ "${#WARNINGS[@]}" -gt 0 ]` so it only runs when there's content.
+- **`**/*.css` glob missed root-level files.** Bash case-glob `**/*.css` requires at least one `/` in the candidate path, so `styles.css` at the project root didn't match. Added a fallback: if a pattern starts with `**/`, also test the candidate against the pattern with the `**/` prefix stripped. Now matches both `themes/dark/main.css` (subdir) and `styles.css` (root) — mirroring git-style glob semantics.
+- **Sample correction regex used PCRE shortcuts and produced unbalanced parens.** The sample's `match:` field used `\s*` (PCRE whitespace, doesn't exist in POSIX ERE — matches literal `s`) and `\\(` (which became `\\(` literal after the bash pipeline, producing grep "parentheses not balanced"). Simplified the regex to `filter:[[:space:]]*(brightness|invert|grayscale)` — POSIX ERE compliant, no escape gymnastics needed.
+
+### Changed
+
+- **`docs/compound/CORRECTIONS-SCHEMA.md`** updated with **three explicit gotchas** in the `match:` field reference: POSIX ERE only (no `\s`/`\d`/`\w`), avoid backslashes inside double-quoted YAML strings (the pipeline doesn't process YAML escapes), and test regex with `echo | grep -E` before committing.
+- **`extension.yml`** version bumped to `0.3.1`.
+
+### Verified
+
+6 smoke tests run against `/tmp/sk-compound-test/`:
+1. CSS file matching path + content → blocked (exit 2) with structured stderr ✓
+2. JS file (wrong path) → allowed ✓
+3. CSS file with no filter property → allowed ✓
+4. CSS file with `/* compound-allow: <slug> */` override → allowed ✓
+5. `COMPOUND_BYPASS=1` env var set → allowed ✓
+6. Subdir CSS file matching path + content → blocked ✓
+
+All 30 static `scripts/validate.sh` checks still pass after the changes.
+
+[0.3.1]: https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.1
+
+---
+
 ## [0.3.0] — 2026-06-03
 
 **Active corrections.** The compound store stops being passive — corrections become **tool-level enforcement**, not just background context. When the agent attempts a Write or Edit that matches a documented past mistake, the operation is blocked at the moment of the tool call, before any code is written.

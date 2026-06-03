@@ -116,12 +116,27 @@ for CORR in "${CORRECTION_FILES[@]}"; do
     continue
   fi
 
-  # Pull fields. Format expected:
-  #   paths: ["pattern1", "pattern2"]
-  #   match: "regex"
-  #   rule: "one-line"
-  #   context: "one-line"
-  PATHS=$(echo "$FM" | grep -E "^paths:" | sed -E 's/^paths:[[:space:]]*//')
+  # Pull fields. Both YAML array forms are supported for `paths:`:
+  #   inline:  paths: ["pattern1", "pattern2"]
+  #   block:   paths:
+  #              - "pattern1"
+  #              - "pattern2"
+  # Other fields (match, rule, context) are always inline single-value strings.
+
+  # paths: try inline first (anything on the same line as "paths:")
+  PATHS=$(echo "$FM" | sed -nE 's/^paths:[[:space:]]+(.+)$/\1/p' | head -1)
+  if [ -z "$PATHS" ]; then
+    # Block form — collect every "  - value" line that follows a bare "paths:" line
+    PATHS=$(echo "$FM" | awk '
+      /^paths:[[:space:]]*$/ { in_block=1; next }
+      in_block && /^[a-zA-Z_]+:/ { exit }
+      in_block && /^[[:space:]]+-[[:space:]]+/ {
+        sub(/^[[:space:]]+-[[:space:]]+/, "")
+        print
+      }
+    ')
+  fi
+
   MATCH_REGEX=$(echo "$FM" | grep -E "^match:" | sed -E 's/^match:[[:space:]]*//' | sed -E 's/^"(.*)"$/\1/' | sed -E "s/^'(.*)'\$/\1/")
   RULE=$(echo "$FM" | grep -E "^rule:" | sed -E 's/^rule:[[:space:]]*//' | sed -E 's/^"(.*)"$/\1/' | sed -E "s/^'(.*)'\$/\1/")
   CONTEXT=$(echo "$FM" | grep -E "^context:" | sed -E 's/^context:[[:space:]]*//' | sed -E 's/^"(.*)"$/\1/' | sed -E "s/^'(.*)'\$/\1/")
@@ -132,17 +147,28 @@ for CORR in "${CORRECTION_FILES[@]}"; do
     continue
   fi
 
-  # Check paths glob (extract patterns from YAML array form "[a, b]" or single string)
-  # Strip brackets, split on comma, trim quotes/whitespace
-  PATTERNS=$(echo "$PATHS" | sed -E 's/^\[//; s/\]$//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//')
+  # Check paths glob. PATHS may now be:
+  #   - inline array form, still bracketed:  ["a", "b"]
+  #   - block form, newline-separated already:  a\nb
+  # Normalize either to one pattern per line, quotes/whitespace stripped.
+  PATTERNS=$(echo "$PATHS" | sed -E 's/^\[//; s/\]$//' | tr ',' '\n' | sed -E 's/^[[:space:]]*"?//; s/"?[[:space:]]*$//' | grep -v '^$')
 
   PATH_MATCHED=0
   while IFS= read -r PAT; do
     [ -z "$PAT" ] && continue
-    # Convert glob to bash extglob check
+    # Bash case-glob `**/*.css` requires at least one `/` in FILE_REL, so
+    # it misses root-level files. We try the pattern as written, and ALSO
+    # try it with a leading `**/` stripped — so `**/*.css` matches both
+    # `sub/styles.css` AND `styles.css`. This mirrors git-style glob.
     case "$FILE_REL" in
       $PAT) PATH_MATCHED=1; break ;;
     esac
+    if [[ "$PAT" == \*\*/* ]]; then
+      STRIPPED="${PAT#**/}"
+      case "$FILE_REL" in
+        $STRIPPED) PATH_MATCHED=1; break ;;
+      esac
+    fi
   done <<< "$PATTERNS"
 
   if [ "$PATH_MATCHED" -eq 0 ]; then
@@ -165,10 +191,12 @@ for CORR in "${CORRECTION_FILES[@]}"; do
   MATCHES+=("$CORR|$RULE|$CONTEXT")
 done
 
-# Emit warnings (F12)
-for W in "${WARNINGS[@]}"; do
-  echo "$W" >&2
-done
+# Emit warnings (F12). Guard against `set -u` choking on empty array on bash 3.2 (macOS default).
+if [ "${#WARNINGS[@]}" -gt 0 ]; then
+  for W in "${WARNINGS[@]}"; do
+    echo "$W" >&2
+  done
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # Decision
