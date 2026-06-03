@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.1] — 2026-06-03
 
-Live-run discovery: spec-kit's hook system dispatches **shell-script** hooks (like the bundled `git` extension's branch-creation script) cleanly, but does **not** dispatch **agent-prompt** hooks like ours under Claude Code. Our hooks installed correctly into `.specify/extensions.yml` but were silently ignored at run time — the user ran `/speckit-specify`, the spec generated in vanilla shape, and no intent/expectations docs were created.
+**Two discoveries from the first live run in `~/TravvIdea/backend-springboot/`:**
+
+1. **Spec-kit hooks don't dispatch agent-prompt commands.** Our four `before_*`/`after_*` hooks installed correctly into `.specify/extensions.yml` but silently no-op'd. Spec-kit's hook executor dispatches **shell-script** hooks cleanly (like the bundled `git` extension's branch-creation script) but does **not** dispatch **agent-prompt** hooks like ours under Claude Code. The user ran `/speckit-specify`, the spec generated in vanilla shape, and no intent/expectations docs were created.
+
+2. **In-prompt Phase 8 handoffs DO dispatch.** When the user typed `/speckit-compound-intent` directly, Claude completed the interview (in retrofit mode against the existing spec), wrote the intent file, then on Phase 8 confirmation invoked `Skill(speckit-compound-expectations) Successfully loaded skill` — dispatching the next slash command directly from inside the first command's prompt. The chain works, just via a different mechanism than hooks.
+
+**So the chain has three real shapes:** auto-dispatched (in-prompt handoffs for the first 3 hops), user-typed (the 2 manual injection points after spec-kit's own commands), and prompt-suggested (writeback after intentguard PASS).
 
 ### Removed
 
-- **`hooks:` block in `extension.yml`** — the four hook registrations (`before_constitution`, `before_specify`, `after_tasks`, `after_implement`) installed correctly but never executed under Claude Code. Removing them stops silently misleading users into expecting automatic chaining.
+- **`hooks:` block in `extension.yml`** — the four hook registrations (`before_constitution`, `before_specify`, `after_tasks`, `after_implement`) installed correctly but never executed under Claude Code. Removing them stops silently misleading users into expecting them to do work they cannot do.
 
 ### Added
 
@@ -19,9 +25,9 @@ Live-run discovery: spec-kit's hook system dispatches **shell-script** hooks (li
 
 ### Changed
 
-- **README** — replaced the "Standard mode (chained) / Power-user mode" framing with **"Type each command yourself, in order."** Explains why hooks don't work and points to `scripts/check-chain-fired.sh` for verification.
+- **README** — replaced the "Standard mode (chained) / Power-user mode" framing with **"The chain has two automatic segments and two manual injection points."** Documents the actual mechanism: in-prompt Phase 8 handoffs dispatch the next slash command directly (verified live), so the entry point `/speckit-compound-intent` chains to `/speckit-compound-expectations` and then to `/speckit-specify` automatically. After `/speckit-tasks`, the user manually types `/speckit-compound-gapfill`. After `/speckit-implement`, the user manually types `/speckit-compound-intentguard`. The intentguard prompt suggests `/speckit-compound-writeback` on PASS.
 - **`extension.yml`** — version bumped to `0.2.1`. Comment block added in place of the removed `hooks:` section explaining what was tried and why it was removed.
-- **Command descriptions in `extension.yml`** — `speckit.compound.intent` now says "Suggests `/speckit-compound-expectations` on completion" rather than "Chains to" (chain is in the user's hands, not the agent's).
+- **Command descriptions in `extension.yml`** — `speckit.compound.intent` and `speckit.compound.intentguard` descriptions reference their in-prompt chain handoff targets honestly.
 
 ### Notes
 

@@ -58,17 +58,35 @@ Mental shortcut:
 load → intent → expectations → [specify, plan, tasks] → gapfill → implement → intentguard → writeback
 ```
 
-**Type each command yourself, in order.** The chain is manual.
+**The chain has two automatic segments and two manual injection points.**
 
-Earlier drafts wired automatic chaining via `before_*` hooks in `extension.yml`. Spec-kit's hook system dispatches *shell-script* hooks cleanly (like the bundled `git` extension's branch-creation script) but does not dispatch *agent-prompt* hooks like ours — the agent reads `EXECUTE_COMMAND` as descriptive text and continues with the parent command. v0.2.1 drops the misleading hooks; you drive the order.
+**Auto-chain (3 hops via in-prompt handoffs):** start with `/speckit-compound-intent`. On completion, its Phase 8 prompt hands off to `/speckit-compound-expectations`. On completion, that hands off to `/speckit-specify`. Claude dispatches the next slash command directly — no user typing required between these three.
 
-After running through the chain (or any subset of it), verify each artifact landed:
+After `/speckit-specify`, you're in spec-kit's own chain: `/speckit-clarify` (optional), `/speckit-plan`, `/speckit-tasks`.
+
+**Manual injection #1 — after `/speckit-tasks`:** type `/speckit-compound-gapfill`. Spec-kit's `/speckit-tasks` is not our prompt, so we can't auto-trigger from inside it. You drive this hop.
+
+**Standard spec-kit continues:** `/speckit-implement` runs as normal.
+
+**Manual injection #2 — after `/speckit-implement`:** type `/speckit-compound-intentguard`. Returns PASS / REVIEW NEEDED / BLOCKED.
+
+**Suggested by intentguard's own prompt (PASS only):** `/speckit-compound-writeback`.
+
+So the user-typed surface is: **3 commands** total — the entry point, the post-tasks injection, the post-implement injection (with writeback prompted automatically). The other 3 of our 6 commands run via in-prompt chain dispatch.
+
+### Why not full automation via spec-kit hooks?
+
+v0.2.0 registered `before_*` / `after_*` hooks in `extension.yml`. They installed cleanly into `.specify/extensions.yml` but silently no-op'd at run time. Spec-kit's hook executor dispatches **shell-script** hooks cleanly (like the bundled `git` extension's branch-creation script) but does **not** dispatch **agent-prompt** hooks like ours under Claude Code — the agent reads `EXECUTE_COMMAND` as descriptive text and continues with the parent command. v0.2.1 drops the misleading hooks and relies on in-prompt Phase 8 handoffs, which **do** fire correctly.
+
+### Verify each step landed its artifact
+
+After the run (or any partial run):
 
 ```bash
 ./scripts/check-chain-fired.sh <feature-slug>
 ```
 
-A ✗ per step means that step was skipped — type it manually.
+A ✗ per step means that step was skipped or didn't write its artifact — type it manually.
 
 ---
 
