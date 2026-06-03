@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-06-03
+
+**Active corrections.** The compound store stops being passive — corrections become **tool-level enforcement**, not just background context. When the agent attempts a Write or Edit that matches a documented past mistake, the operation is blocked at the moment of the tool call, before any code is written.
+
+This is the **two-layer enforcement** completion called out in `docs/hooks-research.md`:
+- **L1 (since v0.2.2)**: spec-kit phase boundary gates — `/speckit-specify` refuses if no intent doc exists
+- **L2 (NEW in v0.3)**: Claude Code `PreToolUse` tool-call gates — `Write`/`Edit` refuses if proposed change matches a documented correction
+
+L2 catches everything L1 catches, plus everything L1 misses (the user who skips spec-kit entirely and just starts coding with the agent).
+
+Designed via dogfooding: the v0.3 intent + expectations were captured by roleplaying `/speckit-compound-intent` and chain-handoff to `/speckit-compound-expectations` against the v0.3 outcome itself. See `docs/intents/active-corrections.intent.md` and `docs/expectations/active-corrections.expectations.md`.
+
+### Added
+
+- **`.claude/hooks/compound-correction-match.sh`** — the gate script. Reads tool input from stdin, parses every correction in `docs/compound/corrections/` for `paths:` + `match:` + `rule:` + `context:` frontmatter, runs the regex against the proposed content for any matching path, blocks the tool call (exit 2) with a structured stderr message citing each match. Honors the `// compound-allow: <slug>` per-file escape hatch and the `COMPOUND_BYPASS=1` session bypass.
+- **`.claude/settings.template.json`** — Claude Code hook registration template. Single `PreToolUse` entry matching `Write|Edit`, invoking the gate script.
+- **`scripts/bash/install-claude-hooks.sh`** — installer script. Anchors to spec-kit project root, copies the gate script into the user's `.claude/hooks/`, performs an idempotent jq-based merge of the registration into the user's `.claude/settings.json` (preserves all non-compound entries per intent's C6).
+- **`commands/speckit.compound.install-hooks.md`** — the slash command (`/speckit-compound-install-hooks`). Thin wrapper that invokes the installer script via Bash. Shell-script-wrapper pattern, dispatches cleanly under spec-kit's hook executor.
+- **`docs/compound/CORRECTIONS-SCHEMA.md`** — full reference for the v0.3+ correction-note schema, with field reference, mental model of how matching works, rules for writing good `match:` regexes and `rule:` text, both bypass mechanisms, and a worked example.
+- **`docs/compound/corrections/2026-06-03-sample-no-css-img-filters.md`** — sample correction that doubles as a smoke test. After install, asking the agent to Write a CSS file matching the regex should produce a hook block citing this correction.
+- **`scripts/validate.sh` Section 7** — checks the new files exist, settings template parses as JSON, sample correction has all four required frontmatter fields, gate script is executable.
+- **`extension.yml`** registers `speckit.compound.install-hooks` as a new command. Version bumped to `0.3.0`. New `claude-hooks` tag.
+
+### Notes
+
+- **Backward compatibility**: pre-v0.3 corrections (markdown body only, no frontmatter) continue to load as agent context via `/speckit-compound-load`. They aren't enforced until upgraded to the v0.3 schema. Migration is deliberately out-of-scope for v0.3 per the intent doc — upgrade incrementally as you revisit each correction.
+- **Multi-CLI**: only Claude Code is supported in v0.3 (`.claude/settings.json`). Codex CLI, Cursor, and Gemini CLI use the same shell-script contract but different settings file paths; ports planned for v0.4+ per the roadmap in README. See `docs/hooks-research.md` for the design.
+- **Performance budget**: hook is designed for p95 < 250ms on a corrections directory of ~50 entries and a file write of ~50KB. No LLM calls in the hook path — purely shell + grep + jq. If the budget is exceeded in real use, the script can be ported to a small Go/Rust binary without changing the contract.
+- **The hook is opt-in**: installing the extension does NOT auto-register the hook. The user runs `/speckit-compound-install-hooks` explicitly. This prevents surprise behavior in projects that install the extension for the spec-kit-phase gates only.
+
+### Verification
+
+Static validation (`./scripts/validate.sh` from repo root) covers all new files. Live install + hook fire pending — will record in v0.3.1 notes after first real run in `~/TravvIdea/backend-springboot/` or the jetpack-compose demo repo.
+
+[0.3.0]: https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.0
+
+---
+
 ## [0.2.2] — 2026-06-03
 
 Two real bugs from the v0.2.1 retrofit run, plus the re-introduction of a hook that actually fires.

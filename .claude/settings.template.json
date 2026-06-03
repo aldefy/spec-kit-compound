@@ -1,0 +1,16 @@
+{
+  "_comment": "spec-kit-compound v0.3+ — Claude Code hook registrations. Installed by /speckit-compound-install-hooks via the install-claude-hooks.sh script. Do not edit by hand; the installer expects to merge entries with this exact matcher+command signature.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/compound-correction-match.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -170,6 +170,23 @@ For the implementation and launch plan, see [`docs/plan.md`](docs/plan.md).
 
 ---
 
+## Roadmap
+
+Tracked direction beyond v0.3:
+
+- **v0.3.1+ — sibling tool-level gates** (other 3 hook designs from `docs/hooks-research.md`):
+  - `active-out-of-scope` — block any Write/Edit to a file path declared out-of-scope in the active intent doc
+  - `active-intent-existence` — block any Write under `src/` or `app/` when no intent doc exists for the current feature
+  - `active-complexity-gate` — block any Write whose proposed function exceeds cyclomatic complexity threshold
+- **v0.4+ — multi-CLI portability** for the tool-level gates: Codex CLI (`~/.codex/config`), Cursor 1.7+ (`beforeReadFile`, `afterFileEdit`), Gemini CLI (`.gemini/settings.json` with `BeforeTool` matcher). The bash hook scripts themselves are CLI-agnostic; only the settings translation differs.
+- **v0.5+ — server-side enforcement**: `.git/hooks/pre-commit` template and a GitHub Action template wrapping `scripts/check-chain-fired.sh`, for belt-and-braces enforcement when the agent runs outside a harness with hook support (raw API calls, CI bots, etc.).
+- **Pre-v0.3 correction migration helper**: a one-shot command that walks existing corrections and prompts the user to add the v0.3+ frontmatter (`paths:`, `match:`, `rule:`, `context:`). Out-of-scope for v0.3 per the intent doc; revisit when there's real volume of pre-v0.3 corrections in the wild.
+- **SpecKit Friends listing + extension catalog submission**: after 2–3 successful real-feature runs.
+
+For the design rationale behind each, see [`docs/hooks-research.md`](docs/hooks-research.md) and [`docs/intents/active-corrections.intent.md`](docs/intents/active-corrections.intent.md).
+
+---
+
 ## Project status
 
 **v0.2 — early, conventions aligned.** The extension is functional and now matches real spec-kit conventions (hyphenated slash commands, dotted source filenames, hooks-based chain automation). Battle-testing still pending.

@@ -110,7 +110,7 @@ fi
 echo ""
 echo "Scripts"
 
-for s in scripts/check-chain-fired.sh scripts/validate.sh scripts/bash/require-intent.sh; do
+for s in scripts/check-chain-fired.sh scripts/validate.sh scripts/bash/require-intent.sh scripts/bash/install-claude-hooks.sh .claude/hooks/compound-correction-match.sh; do
   if [ ! -f "$s" ]; then
     fail "$s does not exist"
   elif [ -x "$s" ]; then
@@ -143,6 +143,44 @@ if grep -q "^hooks:" extension.yml; then
   done
 else
   pass "No hooks: block declared (manual chain only — also valid)"
+fi
+
+# ─────────────────────────────────────────────────────────────────
+# Section 7: v0.3 active-corrections files
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "v0.3 active-corrections"
+
+if [ -f .claude/settings.template.json ]; then
+  if python3 -c "import json; json.load(open('.claude/settings.template.json'))" 2>/dev/null; then
+    pass ".claude/settings.template.json parses as valid JSON"
+  else
+    fail ".claude/settings.template.json does not parse as valid JSON"
+  fi
+else
+  fail ".claude/settings.template.json missing"
+fi
+
+if [ -f .claude/hooks/compound-correction-match.sh ]; then
+  pass ".claude/hooks/compound-correction-match.sh present"
+else
+  fail ".claude/hooks/compound-correction-match.sh missing"
+fi
+
+if [ -f docs/compound/CORRECTIONS-SCHEMA.md ]; then
+  pass "docs/compound/CORRECTIONS-SCHEMA.md present"
+else
+  fail "docs/compound/CORRECTIONS-SCHEMA.md missing"
+fi
+
+# Validate sample correction has the v0.3 frontmatter shape
+SAMPLE_CORR=$(ls docs/compound/corrections/*.md 2>/dev/null | head -1)
+if [ -n "$SAMPLE_CORR" ]; then
+  if grep -q "^paths:" "$SAMPLE_CORR" && grep -q "^match:" "$SAMPLE_CORR" && grep -q "^rule:" "$SAMPLE_CORR" && grep -q "^context:" "$SAMPLE_CORR"; then
+    pass "sample correction $SAMPLE_CORR has v0.3 schema (paths, match, rule, context)"
+  else
+    fail "sample correction $SAMPLE_CORR missing one of: paths, match, rule, context"
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────
