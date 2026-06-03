@@ -6,6 +6,65 @@ A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engine
 
 ---
 
+## The concepts
+
+Two ideas this extension wires together. Neither is mine — both came from people doing real work and writing it up.
+
+### Compound engineering
+
+Coined by [Every](https://every.to/guides/compound-engineering) (Kevin Rose, Dan Shipper). The idea: **every engineering cycle should make the next one easier.** You do this by writing durable notes back into the repo as you work — architectural decisions, AI corrections, reusable patterns — and loading them as context before the next cycle.
+
+The **compound store** (committed under `docs/compound/`) holds three things:
+
+- **ADRs** — architectural decisions; do not re-debate
+- **Corrections** — past AI mistakes and the rules derived from them; do not repeat
+- **Patterns** — proven approaches for this codebase; reach for these by default
+
+After 20 features the compound store has more applied wisdom than any constitution doc you could write up front — because it was derived from real work, not imagined ahead of time. SpecKit's `/speckit-constitution` is a one-time static document; the compound store is a **living, growing** one. That's the "compound" in compound engineering.
+
+### ICE — Intent, Context, Expectations
+
+Coined by Kapil Viren Ahuja (Activated Thinker on Medium) as the building blocks of **intent-driven software development** (IDSD). The frame splits what you give an agent into three slots:
+
+| Slot | What it is | Who owns it |
+|---|---|---|
+| **Intent** | Goal + constraints + failure conditions — what only you can write | You |
+| **Context** | The surround (stack, codebase, prior decisions) — fed progressively | The harness |
+| **Expectations** | Success scenarios + boundary of done — compartmented from Intent | You |
+
+**The compartmentation is the critical bit.** Success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. That's why this extension writes intent and expectations to **separate files** (`docs/intents/` vs `docs/expectations/`) and instructs `/speckit-implement` to only load the intent doc, not the expectations doc.
+
+### How this extension combines them
+
+```
+COMPOUND STORE
+  (loaded into context at session start)
+       │
+       ▼
+  /speckit-compound-intent          (Intent: goal + constraints + failure conditions)
+       │
+  /speckit-compound-expectations    (Expectations: success scenarios, separate file)
+       │
+  /speckit-specify → /speckit-plan → /speckit-tasks  (SpecKit's standard flow)
+       │
+  /speckit-compound-gapfill         (constraint-violation + edge tests added to tasks.md)
+       │
+  /speckit-implement                (SpecKit's standard implementation loop)
+       │
+  /speckit-compound-intentguard     (L3 validation: diff vs intent's OOS / constraints / failures)
+       │
+  /speckit-compound-writeback       (persist new ADRs / corrections / patterns)
+       │
+       ▼
+COMPOUND STORE (now richer — next feature inherits)
+```
+
+**ICE** provides the input discipline. **Compound engineering** provides the memory loop. **SpecKit** provides the execution mechanism. This extension is the wiring that makes the three work together as one system.
+
+For the full design rationale, see [`docs/ref.md`](docs/ref.md).
+
+---
+
 ## What this gives you
 
 Five new commands that wrap the vanilla SpecKit workflow:
@@ -108,23 +167,6 @@ This extension fixes each:
 
 For the full design rationale and the IDSD framing, see [`docs/ref.md`](docs/ref.md).
 For the implementation and launch plan, see [`docs/plan.md`](docs/plan.md).
-
----
-
-## The compound store
-
-After a few features, your repo grows a `docs/compound/` directory:
-
-```
-docs/compound/
-├── adr/           ← architectural decisions; do not re-debate
-├── corrections/   ← past AI mistakes; do not repeat
-└── patterns/      ← approaches proven in this codebase; reach for these
-```
-
-Every feature contributes back via `/speckit-compound-writeback`. Every feature inherits the accumulated store via `/speckit-compound-load`. This is the "compound" in compound engineering: each engineering cycle makes the next one easier.
-
-SpecKit's `/speckit-constitution` is a **one-time, static** governance document. The compound store is a **living, growing** one. After 20 features, the compound store has more applied wisdom than any constitution doc you could write upfront — because it was derived from real work, not imagined ahead of time.
 
 ---
 
