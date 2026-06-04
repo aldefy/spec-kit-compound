@@ -1,8 +1,28 @@
 # spec-kit-compound
 
+[![Version](https://img.shields.io/badge/version-v0.3.1-228be6)](https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.1)
+[![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
+[![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
+[![Status: smoke-tested](https://img.shields.io/badge/status-smoke--tested-c92a2a)](#project-status)
+
 A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engineering memory**, and **L3 intent guard validation** to the Spec-Driven Development workflow.
 
 > **Positioning.** This is an *extension*, not a *harness*. We sit on top of whatever harness SpecKit drives (Claude Code, Cursor, Copilot, Gemini CLI, etc.) and inject the missing intent / expectations / compound discipline before, during, and after the standard SpecKit chain. We are not a competitor to harness frameworks like Garura — we complement them.
+
+**Contents:** [Why this exists](#why-this-exists) · [Concepts](#the-concepts) · [What you get](#what-you-get) · [Install](#install) · [Chain at a glance](#the-chain-at-a-glance) · [Two-layer enforcement](#two-layer-enforcement) · [Roadmap](#roadmap) · [Project status](#project-status)
+
+---
+
+## Why this exists
+
+SpecKit is excellent at generating specs and driving the agentic implementation loop, but it leaves four systematic gaps. spec-kit-compound closes each.
+
+| Gap in vanilla SpecKit | How spec-kit-compound closes it |
+|---|---|
+| **Intent ≠ spec.** `/speckit-specify`'s template tells the agent to *"make informed guesses"* and *"fill gaps"*, capped at *"Maximum 3 [NEEDS CLARIFICATION] markers."* Spec ambiguity becomes unsupervised model choices. | `/speckit-compound-intent` runs an **interview** that refuses to terminate until the intent passes a strict quality rubric (G1–G5 for goal, C1–C5 for constraints, F1–F4 for failure conditions). No silent gap-filling. |
+| **Expectations live in the same artifact as intent.** Success scenarios appear in the file the builder reads, which enables **reward-hacking** — the builder optimizes for the validator's checks. | `/speckit-compound-expectations` writes success scenarios to a **separate file** the builder doesn't read. Soft compartmentation. The validator (`/speckit-compound-intentguard`) reads it; the builder (`/speckit-implement`) doesn't. |
+| **Memory lives locally.** Claude Code's memory files don't go in version control. New sessions, new machines, new teammates start with zero context. | `/speckit-compound-load` and `writeback` make the agent's memory a **committed, version-controlled** artifact under `docs/compound/` — ADRs + corrections + patterns, persisted across sessions. |
+| **Even when memory is persisted, it's passive.** ADR-style notes load as context but the agent can ignore them. The same mistakes get repeated. | **v0.3+ `PreToolUse` hook** turns the compound store into **active enforcement**. Write/Edit attempts that match documented past mistakes get blocked *before* the code is written. Two bypass mechanisms keep it overridable. |
 
 ---
 
@@ -12,19 +32,48 @@ Two ideas this extension wires together. Neither is mine — both came from peop
 
 ### Compound engineering
 
-Coined by [Every](https://every.to/guides/compound-engineering) (Kevin Rose, Dan Shipper). The idea: **every engineering cycle should make the next one easier.** You do this by writing durable notes back into the repo as you work — architectural decisions, AI corrections, reusable patterns — and loading them as context before the next cycle.
+Coined by [Every](https://every.to/guides/compound-engineering) (Kevin Rose, Dan Shipper).
+
+> Every engineering cycle should make the next one easier.
+
+You do this by writing durable notes back into the repo as you work — architectural decisions, AI corrections, reusable patterns — and loading them as context before the next cycle.
 
 The **compound store** (committed under `docs/compound/`) holds three things:
 
-- **ADRs** — architectural decisions; do not re-debate
-- **Corrections** — past AI mistakes and the rules derived from them; do not repeat
-- **Patterns** — proven approaches for this codebase; reach for these by default
+| Slot | Purpose |
+|---|---|
+| **ADRs** | Architectural decisions — *do not re-debate* |
+| **Corrections** | Past AI mistakes and the rules derived from them — *do not repeat* |
+| **Patterns** | Proven approaches for this codebase — *reach for these by default* |
 
-After 20 features the compound store has more applied wisdom than any constitution doc you could write up front — because it was derived from real work, not imagined ahead of time. SpecKit's `/speckit-constitution` is a one-time static document; the compound store is a **living, growing** one. That's the "compound" in compound engineering.
+After 20 features the compound store has more applied wisdom than any constitution doc you could write up front — because it was derived from real work, not imagined ahead of time. SpecKit's `/speckit-constitution` is a one-time static document; the compound store is **living, growing**. That's the "compound" in compound engineering.
 
 ### ICE — Intent, Context, Expectations
 
 Coined by Kapil Viren Ahuja (Activated Thinker on Medium) as the building blocks of **intent-driven software development** (IDSD). The frame splits what you give an agent into three slots:
+
+```mermaid
+flowchart LR
+    I["Intent<br/>(goal + constraints +<br/>failure conditions)"]:::user
+    C["Context<br/>(stack + codebase +<br/>prior decisions)"]:::harness
+    E["Expectations<br/>(success scenarios +<br/>boundary of done)"]:::user
+    H[Harness +<br/>SpecKit chain]:::stage
+    O[Implementation]:::stage
+    V[Validator]:::stage
+    R{PASS / REVIEW / BLOCKED}:::out
+
+    I --> H
+    C --> H
+    H --> O
+    O --> V
+    E --> V
+    V --> R
+
+    classDef user fill:#2d2d2d,stroke:#adb5bd,color:#e6e6e6
+    classDef harness fill:#495057,stroke:#adb5bd,color:#e6e6e6
+    classDef stage fill:#495057,stroke:#adb5bd,color:#e6e6e6
+    classDef out fill:#228be6,stroke:#228be6,color:#ffffff
+```
 
 | Slot | What it is | Who owns it |
 |---|---|---|
@@ -34,29 +83,25 @@ Coined by Kapil Viren Ahuja (Activated Thinker on Medium) as the building blocks
 
 **The compartmentation is the critical bit.** Success scenarios must not appear in the artifact the builder reads, because LLMs reward-hack — the builder will optimize for the validator's checks if both come from the same file. That's why this extension writes intent and expectations to **separate files** (`docs/intents/` vs `docs/expectations/`) and instructs `/speckit-implement` to only load the intent doc, not the expectations doc.
 
-### How this extension combines them
+### How they combine
 
-```
-COMPOUND STORE
-  (loaded into context at session start)
-       │
-       ▼
-  /speckit-compound-intent          (Intent: goal + constraints + failure conditions)
-       │
-  /speckit-compound-expectations    (Expectations: success scenarios, separate file)
-       │
-  /speckit-specify → /speckit-plan → /speckit-tasks  (SpecKit's standard flow)
-       │
-  /speckit-compound-gapfill         (constraint-violation + edge tests added to tasks.md)
-       │
-  /speckit-implement                (SpecKit's standard implementation loop)
-       │
-  /speckit-compound-intentguard     (L3 validation: diff vs intent's OOS / constraints / failures)
-       │
-  /speckit-compound-writeback       (persist new ADRs / corrections / patterns)
-       │
-       ▼
-COMPOUND STORE (now richer — next feature inherits)
+```mermaid
+flowchart TB
+    CS1[("Compound store<br/>ADRs + corrections + patterns")]:::store
+    CS1 -->|loaded at session start| L["/speckit-compound-load"]:::ours
+    L --> Intent["/speckit-compound-intent<br/>goal + constraints + failures"]:::ours
+    Intent --> Exp["/speckit-compound-expectations<br/>success scenarios (separate file)"]:::ours
+    Exp --> S["/speckit-specify → plan → tasks<br/>vanilla SpecKit chain"]:::vanilla
+    S --> GF["/speckit-compound-gapfill<br/>+ constraint-violation tests"]:::ours
+    GF --> IM["/speckit-implement<br/>vanilla SpecKit"]:::vanilla
+    IM --> IG["/speckit-compound-intentguard<br/>L3 diff vs intent"]:::ours
+    IG --> WB["/speckit-compound-writeback<br/>persist new ADRs / corrections"]:::ours
+    WB --> CS2[("Compound store<br/>now richer — next feature inherits")]:::storeOut
+
+    classDef ours fill:#495057,stroke:#adb5bd,color:#e6e6e6
+    classDef vanilla fill:#2d2d2d,stroke:#adb5bd,color:#e6e6e6
+    classDef store fill:#2d2d2d,stroke:#adb5bd,color:#e6e6e6
+    classDef storeOut fill:#228be6,stroke:#228be6,color:#ffffff
 ```
 
 **ICE** provides the input discipline. **Compound engineering** provides the memory loop. **SpecKit** provides the execution mechanism. This extension is the wiring that makes the three work together as one system.
@@ -65,84 +110,90 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 
 ---
 
-## What this gives you
+## What you get
 
-**Six commands you type during a feature** that wrap the vanilla SpecKit workflow:
+### Six commands you type during a feature
 
 | Command | Phase | Adds |
 |---|---|---|
+| `/speckit-compound-load` | Start of feature | Reads committed ADRs / corrections / patterns into agent context |
 | `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
 | `/speckit-compound-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
-| `/speckit-compound-load` | Start of feature | Reads committed ADRs / corrections / patterns into agent context |
 | `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
 | `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
 | `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
 
-**Plus infrastructure** (run once per project / never typed by hand during a feature):
+### Two infrastructure commands
+
+Run once per project; never typed by hand during a feature.
 
 | Command | When | What |
 |---|---|---|
-| `/speckit-compound-install-hooks` | One-time, per project | Installs the v0.3+ Claude Code `PreToolUse` hook that blocks Write/Edit on documented past mistakes (opt-in, see [tool-level enforcement](#v03-tool-level-enforcement-opt-in) below) |
+| `/speckit-compound-install-hooks` | One-time per project | Installs the v0.3+ Claude Code `PreToolUse` hook that blocks Write/Edit on documented past mistakes (opt-in, see [Two-layer enforcement](#two-layer-enforcement)) |
 | `/speckit-compound-require-intent` | Auto-fires `before_specify` | Gate hook (v0.2.2+) — refuses to let `/speckit-specify` proceed if no intent doc exists. Shell-script wrapper; dispatches reliably under SpecKit's hook executor. |
 
 ---
 
 ## Install
 
-Local dev:
+**Local dev:**
+
 ```bash
 specify extension add --dev /path/to/spec-kit-compound
 ```
 
-Latest tagged release:
+**Latest tagged release:**
+
 ```bash
 specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
 ```
 
-After install, **one-time per project**, opt into the v0.3+ tool-level hook:
+**One-time per project**, opt into the v0.3+ tool-level hook:
+
 ```
 /speckit-compound-install-hooks
 ```
-(See [tool-level enforcement](#v03-tool-level-enforcement-opt-in) for what this adds.)
+
+See [Two-layer enforcement](#two-layer-enforcement) for what this adds.
 
 ---
 
-## The cheat sheet (10-step flow)
+## The chain at a glance
 
+```mermaid
+flowchart LR
+    L["load"]:::ours --> I["intent"]:::ours
+    I -->|auto-chain| E["expectations"]:::ours
+    E -->|auto-chain| Sp["specify"]:::vanilla
+    Sp -.->|vanilla SpecKit| P["plan"]:::vanilla
+    P -.-> T["tasks"]:::vanilla
+    T -->|type manually| GF["gapfill"]:::ours
+    GF --> Im["implement"]:::vanilla
+    Im -->|type manually| IG["intentguard"]:::ours
+    IG -->|prompted by intentguard| WB["writeback"]:::ours
+
+    classDef ours fill:#495057,stroke:#adb5bd,color:#e6e6e6
+    classDef vanilla fill:#2d2d2d,stroke:#adb5bd,color:#e6e6e6
 ```
-/speckit-compound-load        # NEW — pull past ADRs/corrections/patterns into context
-/speckit-compound-intent               # NEW — interview-driven goal, constraints, failure conditions
-/speckit-compound-expectations         # NEW — success scenarios (validator-only)
-/speckit-specify              # vanilla — paste intent's goal + in-scope here
-/speckit-plan                 # vanilla
-/speckit-tasks                # vanilla
-/speckit-compound-gapfill              # NEW — add constraint-violation + negative tests to tasks.md
-/speckit-implement            # vanilla
-/speckit-compound-intentguard          # NEW — L3 gate before merge
-/speckit-compound-writeback   # NEW — commit learnings from this run
-```
 
-Three commands wrap **before** SpecKit, one **mid** (gapfill, between tasks and implement), two **after** (intentguard, writeback). SpecKit's vanilla chain is unchanged.
+**Three user-typed commands total.** Solid edges auto-chain (in-prompt handoff). Dotted edges are SpecKit's own chain. The two `type manually` edges are the only places you intervene; everything else flows.
 
-Mental shortcut:
+**Mental shortcut:**
 
 ```
 load → intent → expectations → [specify, plan, tasks] → gapfill → implement → intentguard → writeback
 ```
 
-**The chain has two automatic segments and two manual injection points.**
+Three commands wrap **before** SpecKit, one **mid** (gapfill, between tasks and implement), two **after** (intentguard, writeback). SpecKit's vanilla chain is unchanged.
 
-**Auto-chain (3 hops via in-prompt handoffs):** start with `/speckit-compound-intent`. On completion, its Phase 8 prompt hands off to `/speckit-compound-expectations`. On completion, that hands off to `/speckit-specify`. Claude dispatches the next slash command directly — no user typing required between these three.
+### How the chain actually dispatches
 
-After `/speckit-specify`, you're in spec-kit's own chain: `/speckit-clarify` (optional), `/speckit-plan`, `/speckit-tasks`.
-
-**Manual injection #1 — after `/speckit-tasks`:** type `/speckit-compound-gapfill`. Spec-kit's `/speckit-tasks` is not our prompt, so we can't auto-trigger from inside it. You drive this hop.
-
-**Standard spec-kit continues:** `/speckit-implement` runs as normal.
-
-**Manual injection #2 — after `/speckit-implement`:** type `/speckit-compound-intentguard`. Returns PASS / REVIEW NEEDED / BLOCKED.
-
-**Suggested by intentguard's own prompt (PASS only):** `/speckit-compound-writeback`.
+- **Auto-chain (3 hops via in-prompt handoffs):** start with `/speckit-compound-intent`. On completion, its Phase 8 prompt hands off to `/speckit-compound-expectations`. On completion, that hands off to `/speckit-specify`. Claude dispatches the next slash command directly — no user typing required between these three.
+- **Spec-kit's own chain:** after `/speckit-specify`, you're in spec-kit's own chain: `/speckit-clarify` (optional), `/speckit-plan`, `/speckit-tasks`.
+- **Manual injection #1 — after `/speckit-tasks`:** type `/speckit-compound-gapfill`. Spec-kit's `/speckit-tasks` is not our prompt, so we can't auto-trigger from inside it.
+- **Standard spec-kit continues:** `/speckit-implement` runs as normal.
+- **Manual injection #2 — after `/speckit-implement`:** type `/speckit-compound-intentguard`. Returns PASS / REVIEW NEEDED / BLOCKED.
+- **Suggested by intentguard's own prompt (PASS only):** `/speckit-compound-writeback`.
 
 So the user-typed surface is: **3 commands** total — the entry point, the post-tasks injection, the post-implement injection (with writeback prompted automatically). The other 3 of our 6 commands run via in-prompt chain dispatch.
 
@@ -160,49 +211,47 @@ After the run (or any partial run):
 
 A ✗ per step means that step was skipped or didn't write its artifact — type it manually.
 
-### v0.3+ tool-level enforcement (opt-in)
+---
 
-In addition to the slash-command chain above, v0.3 adds a **Claude Code `PreToolUse` hook layer** that runs on every Write/Edit — regardless of whether SpecKit is in the loop. Install once per project with `/speckit-compound-install-hooks`. After install:
-
-- Every agent Write/Edit checks the proposed file path + content against `docs/compound/corrections/*.md`
-- If any correction with a `paths:` glob matching the file path **and** `match:` regex matching the content fires, the tool call is blocked (exit 2) with structured stderr: correction file path + matched rule + one-line context
-- The agent reads the stderr and adjusts its plan rather than proceeding
-- Two bypass mechanisms: per-file `// compound-allow: <correction-slug>` comment (audit trail in diff) or `COMPOUND_BYPASS=1` env var (session-wide sledgehammer)
-
-This is the **two-layer enforcement** model:
+## Two-layer enforcement
 
 | Layer | Trigger | Mechanism | Since |
 |---|---|---|---|
 | **L1** | User types `/speckit-specify` | SpecKit `before_specify` gate refuses without an intent doc | v0.2.2 |
 | **L2** | Agent attempts Write/Edit | Claude Code `PreToolUse` hook refuses on correction match | v0.3 |
 
-L2 catches everything L1 catches, plus everything L1 misses (the user who skips SpecKit entirely and codes directly with the agent).
+L2 catches everything L1 catches, **plus** everything L1 misses (the user who skips SpecKit entirely and codes directly with the agent).
+
+### How L2 fires on every Write/Edit
+
+```mermaid
+flowchart LR
+    A["Agent attempts<br/>Write or Edit"]:::start --> H{PreToolUse hook<br/>fires}:::gate
+    H --> C{Match any<br/>correction's<br/>paths + match?}:::gate
+    C -->|no match| Pass[Tool call proceeds]:::ok
+    C -->|match| Bypass{Bypass<br/>active?}:::gate
+    Bypass -->|"// compound-allow:<br/>or env var"| Pass2[Tool call proceeds<br/>with audit trail]:::ok
+    Bypass -->|no| Block[Tool call blocked<br/>exit 2 + structured stderr]:::block
+    Block --> Adjust[Agent reads stderr<br/>and re-plans]:::gate
+
+    classDef start fill:#2d2d2d,stroke:#adb5bd,color:#e6e6e6
+    classDef gate fill:#495057,stroke:#adb5bd,color:#e6e6e6
+    classDef ok fill:#228be6,stroke:#228be6,color:#ffffff
+    classDef block fill:#c92a2a,stroke:#c92a2a,color:#ffffff
+```
+
+After `/speckit-compound-install-hooks` runs once:
+
+- Every agent Write/Edit checks the proposed file path + content against `docs/compound/corrections/*.md`
+- If any correction with a `paths:` glob matching the file path **and** `match:` regex matching the content fires, the tool call is blocked (exit 2) with structured stderr: correction file path + matched rule + one-line context
+- The agent reads the stderr and adjusts its plan rather than proceeding
+
+**Two bypass mechanisms:**
+
+- **Per-file** — `// compound-allow: <correction-slug>` comment in the file. Leaves an audit trail in the diff.
+- **Session-wide** — `COMPOUND_BYPASS=1` env var. Sledgehammer.
 
 See [`docs/compound/CORRECTIONS-SCHEMA.md`](docs/compound/CORRECTIONS-SCHEMA.md) for the v0.3+ correction schema (frontmatter fields `paths:`, `match:`, `rule:`, `context:`), gotchas (POSIX ERE only — no `\s`, watch double-quoted YAML escapes), and a worked example.
-
----
-
-## Why this exists
-
-SpecKit is excellent at generating specs and driving the agentic implementation loop, but it leaves four systematic gaps:
-
-1. **It doesn't separate intent from spec.** Goals, constraints, and failure conditions get fused into one document. SpecKit's own `/speckit-specify` template instructs the agent to *"make informed guesses"* and *"fill gaps"*, capped at *"Maximum 3 [NEEDS CLARIFICATION] markers"* — converting spec ambiguity directly into unsupervised model choices.
-
-2. **It doesn't compartment expectations from intent.** Success scenarios live in the same artifact the builder reads, which enables **reward-hacking**: the builder optimizes for the validator's checks if both come from the same file.
-
-3. **It doesn't persist memory across sessions.** Claude Code's memory files live locally, not in the project's `.claude` folder under version control. New sessions, new machines, and new teammates start with zero context.
-
-4. **Even when memory is persisted, it's passive.** ADR-style notes and AI correction records are loaded as context but the agent can ignore them. The same mistake gets repeated, the same architectural decision gets re-debated. The store doesn't *enforce* anything.
-
-This extension fixes each:
-
-1. `/speckit-compound-intent` runs an **interview** that refuses to terminate until the intent passes a strict quality rubric (G1–G5 for goal, C1–C5 for constraints, F1–F4 for failure conditions). No silent gap-filling, no "informed guesses."
-2. `/speckit-compound-expectations` writes success scenarios to a **separate file** the builder doesn't read — soft compartmentation against reward-hacking. The validator (`/speckit-compound-intentguard`) reads it; the builder (`/speckit-implement`) does not.
-3. `/speckit-compound-load` / `writeback` make the agent's memory a **committed, version-controlled** artifact under `docs/compound/`, similar to Architecture Decision Records but extended for AI-specific learnings (corrections, patterns).
-4. **v0.3+ adds a Claude Code `PreToolUse` hook** that turns the compound store into **active enforcement**. When the agent tries to Write/Edit a file that matches a documented past mistake, the tool call is blocked at the moment of the attempt — before any code is written. Two bypass mechanisms (per-file comment + session env var) keep the discipline overridable when the user knows what they're doing.
-
-For the full design rationale and the IDSD framing, see [`docs/ref.md`](docs/ref.md).
-For the implementation and launch plan, see [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -264,23 +313,39 @@ For the design rationale behind the v0.3.1+ gates, see [`docs/hooks-research.md`
 
 ## Project status
 
-**v0.3.1 — active enforcement, smoke-tested.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and the v0.3 PreToolUse correction-enforcement hook is verified end-to-end (6/6 smoke tests pass). Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
+> **v0.3.1 — active enforcement, smoke-tested.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and the v0.3 PreToolUse correction-enforcement hook is verified end-to-end (6/6 smoke tests pass). Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
 
-What's verified:
-- Live install in a real spec-kit-initialized project (`specify init . --integration claude` → `specify extension add <path> --dev` → all 8 commands register, gate hook merges into `.specify/extensions.yml` cleanly alongside the bundled `git` extension)
+<table>
+<tr>
+<th align="left">Verified</th>
+<th align="left">Not yet verified</th>
+<th align="left">Known limitations</th>
+</tr>
+<tr valign="top">
+<td>
+
+- Live install in a real spec-kit-initialized project (`specify init . --integration claude` → `specify extension add <path> --dev`) — all 8 commands register, gate hook merges into `.specify/extensions.yml` cleanly alongside the bundled `git` extension
 - v0.2.2 `before_specify` gate hook fires correctly under Claude Code (shell-script wrapper pattern)
-- v0.3 `PreToolUse` correction-enforcement hook: 6 scenarios verified — match blocks with structured stderr; non-match allows; subdir paths match the `**/*.ext` glob; both bypass mechanisms (`// compound-allow:` comment + `COMPOUND_BYPASS=1` env var) work
+- v0.3 `PreToolUse` correction-enforcement hook: 6 scenarios verified — match blocks with structured stderr; non-match allows; subdir paths match `**/*.ext` globs; both bypass mechanisms work
 - Static validation (`scripts/validate.sh`) — 30/30 checks pass
 
-What's not yet verified:
+</td>
+<td>
+
 - Real-feature end-to-end run (intent → spec → plan → tasks → gapfill → implement → intentguard → writeback) on a production codebase. The chain shape is proven via paper tests + the retrofit run; the full feature run is the next milestone.
 - Multi-CLI support (Codex CLI, Cursor, Gemini CLI) — see [Roadmap](#roadmap)
 - Hard compartmentation (separate agents, encrypted evals) — deferred to v0.4+ if evidence of reward-hacking emerges with the soft (file-separation) version
 
-Known limitations:
+</td>
+<td>
+
 - Soft compartmentation only. Same agent reads both intent and expectations docs; the separation is enforced by file location and by `/speckit-implement`'s prompt instructions, not by structural isolation.
 - v0.3 PreToolUse hook is Claude Code only. Other CLIs use the same shell-script contract but different settings file paths — ports planned for v0.4+.
 - Pre-v0.3 corrections (markdown body only, no frontmatter) load as context but are not actively enforced until upgraded to the v0.3 schema.
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -292,7 +357,7 @@ MIT. See [LICENSE](LICENSE).
 
 ## Credits
 
-- **GitHub SpecKit** — the toolkit this extends. <https://github.com/github/spec-kit>
-- **Kapil Viren Ahuja** — the IDSD / ICE framework. *Activated Thinker* publication on Medium.
-- **Every (Kevin Rose, Dan Shipper)** — the compound engineering pattern. <https://every.to/guides/compound-engineering>
-- **#gen-ai-wtf Slack** — kenkyee and Ricardo Costeira, the conversation that crystallized the committed-vs-local memory distinction.
+- [**GitHub SpecKit**](https://github.com/github/spec-kit) — the toolkit this extends
+- **Kapil Viren Ahuja** — the IDSD / ICE framework. *Activated Thinker* publication on Medium
+- [**Every (Kevin Rose, Dan Shipper)**](https://every.to/guides/compound-engineering) — the compound engineering pattern
+- **#gen-ai-wtf Slack** — kenkyee and Ricardo Costeira, the conversation that crystallized the committed-vs-local memory distinction
