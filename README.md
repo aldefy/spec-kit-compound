@@ -1,9 +1,9 @@
 # spec-kit-compound
 
-[![Version](https://img.shields.io/badge/version-v0.3.1-228be6)](https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.1)
+[![Version](https://img.shields.io/badge/version-v0.3.2-228be6)](https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
-[![Status: smoke-tested](https://img.shields.io/badge/status-smoke--tested-c92a2a)](#project-status)
+[![Status: statically validated](https://img.shields.io/badge/status-statically--validated-c92a2a)](#project-status)
 
 A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engineering memory**, and **L3 intent guard validation** to the Spec-Driven Development workflow.
 
@@ -145,7 +145,7 @@ specify extension add --dev /path/to/spec-kit-compound
 **Latest tagged release:**
 
 ```bash
-specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
+specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.2.zip
 ```
 
 **One-time per project**, opt into the v0.3+ tool-level hook:
@@ -271,7 +271,7 @@ Other 3 hook designs from `docs/hooks-research.md`:
 
 - **Multi-model orchestration** — Codex as a first-class subprocess. Phase config routes tools per phase (e.g. CC plans, Codex adversarially verifies, CC executes, Codex reviews). Cross-vendor verification breaks self-preferential bias structurally: Claude reviewing Claude shares training distribution; Codex reviewing Claude doesn't.
 - **Structured expectation outputs** — JSON-schema-typed expectations instead of free-form markdown. Insight from translating SRE skills to dynamic workflows: the schema is what forces the synthesizer to defer claims (emit `candidates`) so a separate verifier can adjudicate. Prose can ask for structural separation; only schema enforces it.
-- **CLAUDE.md auto-distillation** (`/speckit.compound.distill`) — promotes a shipped feature's convention constraints from `expectations.md` into project-level CLAUDE.md rules. Each feature compounds its learned conventions into the next — the literal "compound" in compound engineering.
+- **CLAUDE.md auto-distillation** (`/speckit-compound-distill`) — promotes a shipped feature's convention constraints from `expectations.md` into project-level CLAUDE.md rules. Each feature compounds its learned conventions into the next — the literal "compound" in compound engineering.
 - **Adversarial verification as a formal phase** — not implicit. Inputs: intent + plan + codebase. Output: structured drift report. Configurable drift threshold gate halts execution above the threshold.
 - **PR-time drift check** — CI workflow template that loads relevant `intent.md` constraints on every PR touching a feature area, adversarially checks whether constraints still hold, comments on the PR if drift is detected.
 
@@ -302,7 +302,7 @@ For the tool-level gates. The bash hook scripts themselves are CLI-agnostic; onl
 
 ### Open architecture questions (resolve before v0.4)
 
-- **Intent capture path** — `/speckit.compound.intent` vs `superpowers:brainstorming`. Currently overlapping. Unify (delegate intent capture to the skill), keep distinct (`intent.md` as the spec-kit-compound artifact), or compose (brainstorming produces a draft, `intent.md` formalizes)?
+- **Intent capture path** — `/speckit-compound-intent` vs `superpowers:brainstorming`. Currently overlapping. Unify (delegate intent capture to the skill), keep distinct (`intent.md` as the spec-kit-compound artifact), or compose (brainstorming produces a draft, `intent.md` formalizes)?
 - **Spec file format** — free-form markdown (today) vs frontmatter + machine-readable constraint IDs. Affects every downstream consumer (verifier, distiller, drift-check).
 - **Per-phase model + token budget** — global config, per-workflow config, or both? How does it interact with per-phase model routing from multi-model orchestration?
 - **Codex invocation surface** — subprocess (`codex exec`) vs HTTP (OpenAI SDK directly). Subprocess inherits Codex's harness/skills; HTTP is more portable but loses harness benefits.
@@ -313,7 +313,7 @@ For the design rationale behind the v0.3.1+ gates, see [`docs/hooks-research.md`
 
 ## Project status
 
-> **v0.3.1 — active enforcement, smoke-tested.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and the v0.3 PreToolUse correction-enforcement hook is verified end-to-end (6/6 smoke tests pass). Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
+> **v0.3.2 — PASS-gated writeback, statically validated.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and writeback now refuses REVIEW NEEDED verdicts so durable compound memory is only updated after intentguard records PASS. Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
 
 <table>
 <tr>

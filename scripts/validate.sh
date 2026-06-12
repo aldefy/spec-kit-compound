@@ -184,6 +184,24 @@ if [ -n "$SAMPLE_CORR" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Section 8: writeback gate consistency
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "Writeback gate"
+
+if grep -q "REVIEW NEEDED that a human has cleared" commands/speckit.compound.writeback.md; then
+  fail "writeback prompt allows REVIEW NEEDED after human clearance; writeback must require PASS"
+else
+  pass "writeback prompt requires PASS before modifying the compound store"
+fi
+
+if grep -q "Suggested by intentguard's own prompt (PASS only)" README.md; then
+  pass "README documents writeback as PASS-only"
+else
+  fail "README does not document writeback as PASS-only"
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 echo ""

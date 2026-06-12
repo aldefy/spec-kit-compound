@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-06-12
+
+Patch release. Tightens the writeback gate after a real feature run exposed that `REVIEW NEEDED` could still update durable compound memory after a chat-only human clearance.
+
+### Fixed
+
+- **Writeback is PASS-only.** `/speckit-compound-writeback` now refuses `REVIEW NEEDED` verdicts instead of asking for a chat-only override. Review items must be resolved in the source artifacts and `/speckit-compound-intentguard` must be rerun until the committed report records PASS.
+- **Prompt/docs contradiction guard.** `scripts/validate.sh` now checks that the writeback prompt does not reintroduce the old `REVIEW NEEDED that a human has cleared` allowance, and that README still documents writeback as PASS-only.
+- **Active README slash-command references.** Two future-roadmap references now use the hyphenated slash-command form expected by SpecKit installs.
+
+### Changed
+
+- **`extension.yml`** version bumped to `0.3.2`.
+
+### Validated
+
+The new writeback-gate validator first failed against the old prompt wording, then all 32 static `scripts/validate.sh` checks passed after the fix.
+
+[0.3.2]: https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.2
+
+---
+
 ## [0.3.1] — 2026-06-03
 
 Hotfix. v0.3.0 shipped with four real bugs found during the live smoke test against the sample correction. All four are now fixed and verified end-to-end: the hook correctly blocks (exit 2) on matches, correctly allows (exit 0) on non-matches, honors both bypass mechanisms, and the structured stderr message is exactly the C3-specified format.

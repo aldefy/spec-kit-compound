@@ -4,7 +4,7 @@ description: "Persist new learnings (ADRs, corrections, patterns) from the just-
 
 # Writeback to Compound Store
 
-After `/speckit-compound-intentguard` returns PASS (or REVIEW NEEDED that a human has cleared), you persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
+After `/speckit-compound-intentguard` returns PASS, you persist the learnings of this feature back into the compound store. This is what makes the system compound — every feature contributes to the next.
 
 ---
 
@@ -14,8 +14,10 @@ After `/speckit-compound-intentguard` returns PASS (or REVIEW NEEDED that a huma
 
 Read `docs/intents/{slug}.intentguard.md`. If verdict is:
 - **BLOCKED**: refuse — *"Intent guard verdict is BLOCKED. Resolve violations before writeback."*
-- **REVIEW NEEDED**: ask the user — *"Verdict is REVIEW NEEDED. Has a human reviewed the {N} items? [yes / no]"* Refuse if no.
+- **REVIEW NEEDED**: refuse — *"Intent guard verdict is REVIEW NEEDED. Writeback requires PASS because it updates durable compound memory and marks the intent completed. Resolve the review items, rerun `/speckit-implement` if tasks remain, then rerun `/speckit-compound-intentguard`."*
 - **PASS**: proceed.
+
+Do not accept a chat-only human override for `REVIEW NEEDED`. If a human decides the review items are not required, they must reconcile the source artifact first (for example, trim or complete `specs/{slug}/tasks.md`) and rerun `/speckit-compound-intentguard` so the committed report records a PASS.
 
 **2. Scan the session for writeback candidates:**
 
@@ -119,7 +121,7 @@ completed: {YYYY-MM-DD}
 
 ## Hook behavior
 
-When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-compound-intentguard` has produced a verdict. The hook is `optional: true` — the user is prompted: *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
+When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-compound-intentguard` has produced a PASS verdict. The hook is `optional: true` — the user is prompted: *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
 
 ---
 
