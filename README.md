@@ -139,13 +139,13 @@ Run once per project; never typed by hand during a feature.
 **Local dev:**
 
 ```bash
-specify extension add --dev /path/to/spec-kit-compound
+specify extension add compound --dev /path/to/spec-kit-compound
 ```
 
 **Latest tagged release:**
 
 ```bash
-specify extension add --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
+specify extension add compound --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
 ```
 
 **One-time per project**, opt into the v0.3+ tool-level hook:
