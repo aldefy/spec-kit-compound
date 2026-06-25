@@ -66,6 +66,40 @@ def extract_section(text, header):
     return out
 
 
+_L3_KINDS = {"L3a": "out-of-scope", "L3b": "constraint", "L3d": "expectation"}
+
+
+def parse_intentguard(text):
+    """Return {'verdict': str|None, 'drift': [...]} from an intentguard report."""
+    verdict = parse_frontmatter(text).get("verdict")
+    drift = []
+    current = None  # active L3 level, or None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            head = line[3:].strip()
+            current = None
+            for level in _L3_KINDS:
+                if head.startswith(level):
+                    current = level
+                    break
+            continue
+        if not current:
+            continue
+        m = _BULLET_RE.match(line)
+        if not m:
+            continue
+        body = m.group(1).strip()
+        upper = body.upper()
+        if "BLOCKED" in upper:
+            sev = "blocked"
+        elif "REVIEW" in upper:
+            sev = "review"
+        else:
+            continue  # PASS / clean line — not drift
+        drift.append({"level": current, "kind": _L3_KINDS[current], "text": body, "severity": sev})
+    return {"verdict": verdict, "drift": drift}
+
+
 import os
 import glob
 

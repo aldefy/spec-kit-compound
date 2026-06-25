@@ -207,6 +207,40 @@ class TestContentParsers(unittest.TestCase):
                          ["E1 thing"])
 
 
+class TestParseIntentguard(unittest.TestCase):
+    REPORT = (
+        "---\nverdict: BLOCKED\n---\n"
+        "# Intent Guard Report\n\n"
+        "## Verdict: **BLOCKED**\n\n"
+        "## L3a — Out-of-scope check\n"
+        "- Multi-CLI support: matched at `foo.sh:3` -> BLOCKED\n"
+        "- Server-side enforcement: PASS\n\n"
+        "## L3b — Constraint check\n"
+        "- **C1**: REVIEW NEEDED -- can't tell from diff\n\n"
+        "## L3d — Expectations satisfaction\n"
+        "- **E1**: PASS -- demonstrated\n"
+        "- **E2**: BLOCKED -- scenario regressed\n"
+    )
+
+    def test_verdict_and_drift(self):
+        r = d.parse_intentguard(self.REPORT)
+        self.assertEqual(r["verdict"], "BLOCKED")
+        texts = [(x["level"], x["kind"], x["severity"]) for x in r["drift"]]
+        self.assertIn(("L3a", "out-of-scope", "blocked"), texts)
+        self.assertIn(("L3b", "constraint", "review"), texts)
+        self.assertIn(("L3d", "expectation", "blocked"), texts)
+        self.assertEqual(len(r["drift"]), 3)  # PASS lines excluded
+
+    def test_pass_report_has_no_drift(self):
+        report = ("---\nverdict: PASS\n---\n## L3a — Out-of-scope check\n- item: PASS\n")
+        r = d.parse_intentguard(report)
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertEqual(r["drift"], [])
+
+    def test_empty(self):
+        self.assertEqual(d.parse_intentguard(""), {"verdict": None, "drift": []})
+
+
 class TestPageHtml(unittest.TestCase):
     def test_is_self_contained_document(self):
         html = d.PAGE_HTML
