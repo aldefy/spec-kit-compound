@@ -124,5 +124,16 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(state["compound"]["patterns"], [])
 
 
+class TestPageHtml(unittest.TestCase):
+    def test_is_self_contained_document(self):
+        html = d.PAGE_HTML
+        self.assertIn("<!doctype html", html.lower())
+        self.assertIn("/api/state", html)              # polls the endpoint
+        self.assertIn("01", html)                      # lane numbering present
+        self.assertIn("prefers-reduced-motion", html)  # motion gate present
+        self.assertNotIn("<script src=", html)
+        self.assertNotIn('rel="stylesheet"', html)
+
+
 if __name__ == "__main__":
     unittest.main()

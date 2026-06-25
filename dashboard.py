@@ -177,3 +177,153 @@ def scan_state(repo_root, now=None):
         "orphan_specs": orphan_specs,
         "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns")},
     }
+
+
+PAGE_HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spec-kit-compound · pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --ground:#0E1116; --surface:#161B22; --text:#E6EDF3; --muted:#7D8590;
+  --done:#3FB950; --progress:#D29922; --blocked:#F85149; --accent:#388BFD;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--body);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+header{display:flex;justify-content:space-between;align-items:baseline;
+  padding:20px 28px;border-bottom:1px solid #21262d}
+h1{font-family:var(--display);font-weight:700;font-size:18px;margin:0;letter-spacing:-.01em}
+h1 .sub{color:var(--muted);font-weight:500}
+.live{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.live .dot{color:var(--done)}
+.live.stale .dot{color:var(--muted)}
+main{padding:20px 28px;max-width:1200px}
+.legend,.row{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:center}
+.legend{padding:0 0 12px;color:var(--muted);font-family:var(--mono);font-size:11px}
+.lanes{display:flex;justify-content:space-between}
+.lane{flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rowscroll{overflow-x:auto}
+.row{padding:14px 0;border-top:1px solid #21262d;cursor:pointer}
+.slug{font-family:var(--display);font-weight:500}
+.rail{display:flex;align-items:center;min-width:520px}
+.node{width:14px;height:14px;border-radius:50%;border:2px solid var(--muted);
+  background:transparent;flex:none}
+.seg{flex:1;height:2px;background:#30363d;border-top:1px dashed #30363d}
+.node.done{background:var(--done);border-color:var(--done)}
+.seg.done{background:var(--done);border-top:2px solid var(--done)}
+.node.current{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,139,253,.25);
+  animation:pulse 1.8s ease-in-out infinite}
+.node.blocked{background:var(--blocked);border-color:var(--blocked)}
+.meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:6px}
+.meta .blocked{color:var(--blocked)} .meta .review{color:var(--progress)} .meta .pass{color:var(--done)}
+.panel{margin-top:28px;padding:16px;background:var(--surface);border:1px solid #21262d;border-radius:8px}
+.panel h2{font-family:var(--display);font-size:13px;margin:0 0 10px;letter-spacing:.02em;color:var(--muted);text-transform:uppercase}
+.files{font-family:var(--mono);font-size:12px;color:var(--muted);display:none;margin-top:10px}
+.row.open .files{display:block}
+.empty{color:var(--muted);text-align:center;padding:60px 0;font-family:var(--mono)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(56,139,253,.25)}50%{box-shadow:0 0 0 6px rgba(56,139,253,.08)}}
+@media (prefers-reduced-motion: reduce){.node.current{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>spec-kit-compound <span class="sub">· pipeline</span></h1>
+  <div class="live" id="live"><span class="dot">●</span> connecting…</div>
+</header>
+<main id="main"><div class="empty">Loading…</div></main>
+<script>
+const STAGE_LABELS = ["INTENT","EXP","SPEC","PLAN","TASKS","GAP","IMPL","GUARD","WB"];
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function railHtml(feat){
+  let h = '<div class="rail">';
+  feat.stages_order.forEach((name,i)=>{
+    const st = feat.stages[name];
+    const cls = st.state==="done"?"done":st.state==="current"?"current":st.state==="blocked"?"blocked":"";
+    h += `<span class="node ${cls}" title="${esc(name)}: ${esc(st.state)}"></span>`;
+    if(i < feat.stages_order.length-1){
+      const segDone = st.state==="done" ? "done":"";
+      h += `<span class="seg ${segDone}"></span>`;
+    }
+  });
+  return h + '</div>';
+}
+
+function metaHtml(feat){
+  const t = feat.stages.tasks;
+  const g = feat.stages.intentguard;
+  let bits = [];
+  if(t.total>0) bits.push(`tasks ${t.done}/${t.total}`);
+  if(g.verdict){
+    const k = g.verdict==="PASS"?"pass":g.verdict==="BLOCKED"?"blocked":"review";
+    bits.push(`<span class="${k}">GUARD ${esc(g.verdict)}</span>`);
+  }
+  if(!feat.spec_dir) bits.push("no spec dir matched");
+  return bits.join(" · ");
+}
+
+function render(state){
+  const main = document.getElementById("main");
+  if(!state.features.length && !state.orphan_specs.length){
+    main.innerHTML = '<div class="empty">No features yet. Run <b>/speckit-compound-intent</b> to start the chain.</div>';
+    return;
+  }
+  let h = '<div class="legend"><div></div><div class="rowscroll"><div class="lanes" style="min-width:520px">';
+  STAGE_LABELS.forEach((l,i)=>{ h += `<div class="lane">${String(i+1).padStart(2,"0")} ${l}</div>`; });
+  h += '</div></div></div>';
+
+  state.features.forEach(feat=>{
+    feat.stages_order = state.stages;
+    h += `<div class="row" tabindex="0">
+      <div><div class="slug">${esc(feat.slug)}</div><div class="meta">${metaHtml(feat)}</div></div>
+      <div class="rowscroll">${railHtml(feat)}</div>
+      <div class="files">${feat.files.map(esc).join("<br>")}</div>
+    </div>`;
+  });
+
+  if(state.orphan_specs.length){
+    h += '<div class="panel"><h2>Orphan spec dirs (no intent)</h2>';
+    state.orphan_specs.forEach(o=>{ h += `<div class="meta">${esc(o.dir)} — ${o.stages_present.map(esc).join(", ")||"empty"}</div>`; });
+    h += '</div>';
+  }
+
+  const c = state.compound;
+  h += `<div class="panel"><h2>Compound store</h2>
+    <div class="meta">ADRs ${c.adr.length} · Corrections ${c.corrections.length} · Patterns ${c.patterns.length}</div>
+    <div class="meta">${[...c.adr,...c.corrections,...c.patterns].map(esc).join("  ·  ")||"empty — grows from your first writeback"}</div>
+  </div>`;
+
+  main.innerHTML = h;
+  main.querySelectorAll(".row").forEach(r=>{
+    const toggle=()=>r.classList.toggle("open");
+    r.addEventListener("click",toggle);
+    r.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();toggle();}});
+  });
+}
+
+async function poll(){
+  const live = document.getElementById("live");
+  try{
+    const r = await fetch("/api/state",{cache:"no-store"});
+    const state = await r.json();
+    render(state);
+    live.classList.remove("stale");
+    live.innerHTML = `<span class="dot">●</span> live · scanned ${esc((state.scanned_at||"").slice(11,19)||"now")}`;
+  }catch(e){
+    live.classList.add("stale");
+    live.innerHTML = '<span class="dot">●</span> disconnected — is dashboard.py running?';
+  }
+}
+poll();
+setInterval(poll, 3000);
+</script>
+</body>
+</html>
+"""
