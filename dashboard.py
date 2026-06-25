@@ -2,6 +2,7 @@
 """spec-kit-compound pipeline dashboard — read-only localhost view of the chain."""
 
 import re
+import json
 
 _TASK_RE = re.compile(r"^\s*[-*]\s+\[( |x|X)\]\s")
 
@@ -240,6 +241,69 @@ def scan_state(repo_root, now=None):
     }
 
 
+def _project_slug(repo_root):
+    """Claude Code project-dir slug: abspath with os.sep and '.' replaced by '-'."""
+    abspath = os.path.abspath(repo_root)
+    return abspath.replace(os.sep, "-").replace(".", "-")
+
+
+def _empty_tokens():
+    z = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "billable": 0}
+    return {"available": False, "total": dict(z), "sessions": []}
+
+
+def _add_usage(acc, u):
+    inp = u.get("input_tokens", 0) or 0
+    out = u.get("output_tokens", 0) or 0
+    cc = u.get("cache_creation_input_tokens", 0) or 0
+    cr = u.get("cache_read_input_tokens", 0) or 0
+    acc["input"] += inp
+    acc["output"] += out
+    acc["cache_creation"] += cc
+    acc["cache_read"] += cr
+    acc["billable"] += inp + out + cc
+
+
+def scan_tokens(home, repo_root):
+    proj = os.path.join(home, ".claude", "projects", _project_slug(repo_root))
+    if not os.path.isdir(proj):
+        return _empty_tokens()
+
+    total = {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "billable": 0}
+    sessions = {}  # sid -> {"session","first","last","tokens"}
+    for path in sorted(glob.glob(os.path.join(proj, "*.jsonl"))):
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        o = json.loads(line)
+                    except (ValueError, TypeError):
+                        continue
+                    u = (o.get("message") or {}).get("usage") or o.get("usage")
+                    if not isinstance(u, dict):
+                        continue
+                    sid = o.get("sessionId", "unknown")
+                    ts = o.get("timestamp", "")
+                    s = sessions.setdefault(sid, {
+                        "session": sid, "first": ts, "last": ts,
+                        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0, "billable": 0},
+                    })
+                    if ts and (not s["first"] or ts < s["first"]):
+                        s["first"] = ts
+                    if ts and ts > s["last"]:
+                        s["last"] = ts
+                    _add_usage(s["tokens"], u)
+                    _add_usage(total, u)
+        except OSError:
+            continue
+
+    return {
+        "available": True,
+        "total": total,
+        "sessions": sorted(sessions.values(), key=lambda x: x["first"]),
+    }
+
+
 PAGE_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -390,7 +454,6 @@ setInterval(poll, 3000);
 """
 
 
-import json
 import argparse
 import datetime
 import webbrowser

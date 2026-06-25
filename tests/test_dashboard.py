@@ -207,6 +207,60 @@ class TestContentParsers(unittest.TestCase):
                          ["E1 thing"])
 
 
+def _slug_for(root):
+    # mirror Claude Code's project-dir slugging used by scan_tokens
+    return d._project_slug(root)
+
+
+class TestScanTokens(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.repo = "/Users/x/StudioProjects/demo"
+        self.proj = os.path.join(self.home, ".claude", "projects", _slug_for(self.repo))
+        os.makedirs(self.proj, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.home, ignore_errors=True)
+
+    def _line(self, sid, inp, out, cc=0, cr=0, ts="2026-06-25T10:00:00Z"):
+        return json.dumps({
+            "sessionId": sid, "timestamp": ts,
+            "message": {"usage": {
+                "input_tokens": inp, "output_tokens": out,
+                "cache_creation_input_tokens": cc, "cache_read_input_tokens": cr,
+            }},
+        }) + "\n"
+
+    def test_sums_sessions_and_total(self):
+        with open(os.path.join(self.proj, "s.jsonl"), "w") as f:
+            f.write(self._line("A", 100, 10, cc=5, cr=50))
+            f.write(self._line("A", 200, 20, cc=0, cr=0))
+            f.write("garbage not json\n")            # skipped
+            f.write(json.dumps({"type": "nousage"}) + "\n")  # skipped
+        tok = d.scan_tokens(self.home, self.repo)
+        self.assertTrue(tok["available"])
+        self.assertEqual(tok["total"]["input"], 300)
+        self.assertEqual(tok["total"]["output"], 30)
+        self.assertEqual(tok["total"]["cache_creation"], 5)
+        self.assertEqual(tok["total"]["cache_read"], 50)
+        self.assertEqual(tok["total"]["billable"], 335)  # 300+30+5
+        self.assertEqual(len(tok["sessions"]), 1)
+        self.assertEqual(tok["sessions"][0]["session"], "A")
+
+    def test_missing_dir_unavailable(self):
+        tok = d.scan_tokens(self.home, "/no/such/repo")
+        self.assertFalse(tok["available"])
+        self.assertEqual(tok["total"]["billable"], 0)
+        self.assertEqual(tok["sessions"], [])
+
+    def test_top_level_usage_also_read(self):
+        with open(os.path.join(self.proj, "t.jsonl"), "w") as f:
+            f.write(json.dumps({"sessionId": "B", "timestamp": "2026-06-25T11:00:00Z",
+                                "usage": {"input_tokens": 7, "output_tokens": 3}}) + "\n")
+        tok = d.scan_tokens(self.home, self.repo)
+        self.assertEqual(tok["total"]["billable"], 10)
+
+
 class TestParseIntentguard(unittest.TestCase):
     REPORT = (
         "---\nverdict: BLOCKED\n---\n"
