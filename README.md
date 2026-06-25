@@ -311,6 +311,18 @@ For the design rationale behind the v0.3.1+ gates, see [`docs/hooks-research.md`
 
 ---
 
+## Dashboard (read-only)
+
+A local web view of the chain — which features exist and how far each has advanced through the 9 stages, live task counts, and intentguard verdicts. Pure read-only filesystem scan; it never runs chain commands or writes files.
+
+```
+./scripts/dashboard.sh --open
+```
+
+Serves on `http://127.0.0.1:8787` and re-scans every few seconds, so it updates as you run the chain. Python 3 stdlib only — no dependencies to install.
+
+---
+
 ## Project status
 
 > **v0.3.1 — active enforcement, smoke-tested.** The extension is functional, conventions match real spec-kit (hyphenated slash commands, dotted filenames, dual hook layers), and the v0.3 PreToolUse correction-enforcement hook is verified end-to-end (6/6 smoke tests pass). Battle-testing on real features still pending — looking for 2–3 early adopters; reach out via the [SpecKit Friends](https://github.github.io/spec-kit/community/friends.html) channels or open a GitHub issue.
