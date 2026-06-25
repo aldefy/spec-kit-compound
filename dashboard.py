@@ -384,13 +384,61 @@ main{padding:20px 28px;max-width:1200px}
 .empty{color:var(--muted);text-align:center;padding:60px 0;font-family:var(--mono)}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(56,139,253,.25)}50%{box-shadow:0 0 0 6px rgba(56,139,253,.08)}}
 @media (prefers-reduced-motion: reduce){.node.current{animation:none}}
+.content{display:none;margin-top:12px}
+.row.open .content{display:block}
+.content h3{font-family:var(--display);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:14px 0 6px}
+.content ul{margin:0;padding-left:18px} .content li{font-family:var(--mono);font-size:12px;color:#c9d1d9;margin:2px 0}
+.goal{font-family:var(--display);font-size:15px;color:var(--text);margin-top:4px}
+/* flowchart — the 9-stage chain lit per feature */
+.flow{display:flex;gap:0;align-items:stretch;min-width:760px;margin:8px 0}
+.fstep{flex:1;text-align:center;padding:8px 6px;border-radius:6px;border:1px solid #30363d;background:#0d1117;position:relative}
+.fstep .n{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.fstep .lbl{font-family:var(--display);font-size:11px;margin:2px 0}
+.fstep .desc{font-size:10px;color:var(--muted);line-height:1.3}
+.fstep.done{border-color:var(--done)} .fstep.done .lbl{color:var(--done)}
+.fstep.current{border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,139,253,.2)} .fstep.current .lbl{color:var(--accent)}
+.fstep.blocked{border-color:var(--blocked)} .fstep.blocked .lbl{color:var(--blocked)}
+.farrow{align-self:center;color:#30363d;padding:0 4px;font-family:var(--mono)}
+.drift{margin-top:14px;padding:12px;border:1px solid #30363d;border-radius:6px;background:#0d1117}
+.drift .badge{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:10px}
+.badge.blocked{background:rgba(248,81,73,.15);color:var(--blocked)}
+.badge.review{background:rgba(210,153,34,.15);color:var(--progress)}
+.badge.pass{background:rgba(63,185,80,.15);color:var(--done)}
+.drift li.blocked{color:var(--blocked)} .drift li.review{color:var(--progress)}
+.about{display:none;padding:16px 28px;border-bottom:1px solid #21262d;color:var(--muted)}
+.about.open{display:block}
+.about svg{max-width:100%}
+.toktotal{cursor:pointer}
 </style>
 </head>
 <body>
 <header>
   <h1>spec-kit-compound <span class="sub">· pipeline</span></h1>
-  <div class="live" id="live"><span class="dot">●</span> connecting…</div>
+  <div style="display:flex;gap:18px;align-items:baseline">
+    <div class="live toktotal" id="tokens" title="Click for About / architecture">⌁ —</div>
+    <div class="live" id="live"><span class="dot">●</span> connecting…</div>
+  </div>
 </header>
+<section class="about" id="about" aria-label="About — architecture">
+  <svg viewBox="0 0 760 90" role="img" aria-label="architecture">
+    <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#7D8590"/></marker></defs>
+    <g font-family="JetBrains Mono, monospace" font-size="11" fill="#E6EDF3">
+      <rect x="4" y="28" width="170" height="34" rx="5" fill="#161B22" stroke="#30363d"/>
+      <text x="14" y="42">filesystem</text><text x="14" y="56" fill="#7D8590">docs/ · specs/ · ~/.claude</text>
+      <line x1="178" y1="45" x2="244" y2="45" stroke="#7D8590" marker-end="url(#ah)"/>
+      <rect x="248" y="28" width="150" height="34" rx="5" fill="#161B22" stroke="#30363d"/>
+      <text x="258" y="49">scan_state()</text>
+      <line x1="402" y1="45" x2="468" y2="45" stroke="#7D8590" marker-end="url(#ah)"/>
+      <rect x="472" y="28" width="130" height="34" rx="5" fill="#161B22" stroke="#30363d"/>
+      <text x="482" y="49">/api/state</text>
+      <line x1="606" y1="45" x2="672" y2="45" stroke="#7D8590" marker-end="url(#ah)"/>
+      <rect x="676" y="28" width="80" height="34" rx="5" fill="#161B22" stroke="#388BFD"/>
+      <text x="686" y="42" fill="#388BFD">page</text><text x="686" y="56" fill="#7D8590">3s poll</text>
+    </g>
+  </svg>
+  <div style="margin-top:8px;font-family:var(--mono);font-size:12px">Read-only · no dependencies · 127.0.0.1 · never runs chain commands.</div>
+</section>
 <main id="main"><div class="empty">Loading…</div></main>
 <script>
 const STAGE_LABELS = ["INTENT","EXP","SPEC","PLAN","TASKS","GAP","IMPL","GUARD","WB"];
@@ -423,6 +471,52 @@ function metaHtml(feat){
   return bits.join(" · ");
 }
 
+function flowHtml(feat, state){
+  // flowchart — the 9-stage chain lit by the selected feature's stage states
+  let h = '<div class="rowscroll"><div class="flow">';
+  state.stages.forEach((name,i)=>{
+    const st = feat.stages[name];
+    const cls = st.state==="done"?"done":st.state==="current"?"current":st.state==="blocked"?"blocked":"";
+    const desc = (state.stage_descriptions||{})[name] || "";
+    h += `<div class="fstep ${cls}"><div class="n">${String(i+1).padStart(2,"0")}</div>
+      <div class="lbl">${esc(name)}</div><div class="desc">${esc(desc)}</div></div>`;
+    if(i<state.stages.length-1) h += '<div class="farrow">→</div>';
+  });
+  return h + '</div></div>';
+}
+
+function listBlock(title, items){
+  if(!items || !items.length) return "";
+  return `<h3>${esc(title)}</h3><ul>${items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`;
+}
+
+function driftHtml(feat){
+  const g = feat.stages.intentguard;
+  if(!g.verdict && (!g.drift || !g.drift.length)) return "";
+  const vk = g.verdict==="PASS"?"pass":g.verdict==="BLOCKED"?"blocked":"review";
+  let h = `<div class="drift"><span class="badge ${vk}">${esc(g.verdict||"not validated")}</span>`;
+  if(g.drift && g.drift.length){
+    h += `<ul style="margin-top:8px;padding-left:18px">` +
+      g.drift.map(x=>`<li class="${esc(x.severity)}"><b>${esc(x.level)}</b> ${esc(x.text)}</li>`).join("") + `</ul>`;
+  }
+  return h + '</div>';
+}
+
+function renderContent(feat, state){
+  const c = feat.content || {};
+  let h = '<div class="content">';
+  if(c.goal) h += `<div class="goal">${esc(c.goal)}</div>`;
+  h += flowHtml(feat, state);
+  h += listBlock("Constraints", c.constraints);
+  h += listBlock("Failure conditions", c.failures);
+  h += listBlock("Out of scope", c.out_of_scope);
+  h += listBlock("Expectations — positive", c.expectations_positive);
+  h += listBlock("Expectations — edge", c.expectations_edge);
+  h += driftHtml(feat);
+  h += `<h3>Files</h3><ul>${(feat.files||[]).map(f=>`<li>${esc(f)}</li>`).join("")}</ul>`;
+  return h + '</div>';
+}
+
 function render(state){
   const main = document.getElementById("main");
   if(!state.features.length && !state.orphan_specs.length){
@@ -438,7 +532,7 @@ function render(state){
     h += `<div class="row" tabindex="0">
       <div><div class="slug">${esc(feat.slug)}</div><div class="meta">${metaHtml(feat)}</div></div>
       <div class="rowscroll">${railHtml(feat)}</div>
-      <div class="files">${feat.files.map(esc).join("<br>")}</div>
+      ${renderContent(feat, state)}
     </div>`;
   });
 
@@ -468,6 +562,15 @@ async function poll(){
     const r = await fetch("/api/state",{cache:"no-store"});
     const state = await r.json();
     render(state);
+    const t = state.tokens || {};
+    const tokEl = document.getElementById("tokens");
+    if(t.available){
+      const b = t.total.billable;
+      const human = b>=1e6 ? (b/1e6).toFixed(1)+"M" : b>=1e3 ? (b/1e3).toFixed(0)+"k" : String(b);
+      tokEl.textContent = `⌁ ${human} tokens · ${t.sessions.length} sessions`;
+    } else {
+      tokEl.textContent = "⌁ no local transcripts";
+    }
     live.classList.remove("stale");
     live.innerHTML = `<span class="dot">●</span> live · scanned ${esc((state.scanned_at||"").slice(11,19)||"now")}`;
   }catch(e){
@@ -477,6 +580,9 @@ async function poll(){
 }
 poll();
 setInterval(poll, 3000);
+document.getElementById("tokens").addEventListener("click",()=>{
+  document.getElementById("about").classList.toggle("open");
+});
 </script>
 </body>
 </html>

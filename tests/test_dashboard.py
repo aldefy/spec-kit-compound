@@ -336,5 +336,15 @@ class TestPageHtml(unittest.TestCase):
         self.assertNotIn('rel="stylesheet"', html)
 
 
+class TestPageHtmlV2(unittest.TestCase):
+    def test_new_panels_present_and_self_contained(self):
+        html = d.PAGE_HTML
+        for anchor in ["flowchart", "drift", "About", "tokens", "renderContent"]:
+            self.assertIn(anchor, html)
+        self.assertNotIn("<script src=", html)
+        self.assertNotIn('rel="stylesheet"', html)
+        self.assertNotIn("mermaid", html.lower())  # no CDN diagram lib
+
+
 if __name__ == "__main__":
     unittest.main()
