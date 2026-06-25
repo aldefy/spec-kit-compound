@@ -327,3 +327,81 @@ setInterval(poll, 3000);
 </body>
 </html>
 """
+
+
+import json
+import argparse
+import datetime
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+
+def find_repo_root(start):
+    cur = os.path.abspath(start)
+    while True:
+        if os.path.isfile(os.path.join(cur, "extension.yml")):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return os.path.abspath(start)
+        cur = parent
+
+
+def make_handler(repo_root):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):  # silence default stderr logging
+            pass
+
+        def _send(self, status, body, ctype):
+            data = body.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            if self.path in ("/", "/index.html"):
+                self._send(200, PAGE_HTML, "text/html")
+            elif self.path == "/api/state":
+                now = datetime.datetime.now().isoformat(timespec="seconds")
+                self._send(200, json.dumps(scan_state(repo_root, now=now)), "application/json")
+            else:
+                self._send(404, "not found", "text/plain")
+
+    return Handler
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="spec-kit-compound pipeline dashboard")
+    ap.add_argument("--port", type=int, default=8787)
+    ap.add_argument("--open", action="store_true", help="open the dashboard in a browser")
+    args = ap.parse_args(argv)
+
+    repo_root = find_repo_root(os.path.dirname(os.path.abspath(__file__)))
+    handler = make_handler(repo_root)
+
+    httpd = None
+    for port in range(args.port, args.port + 11):
+        try:
+            httpd = HTTPServer(("127.0.0.1", port), handler)
+            break
+        except OSError:
+            continue
+    if httpd is None:
+        print("error: no free port in range", flush=True)
+        return 1
+
+    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    print(f"spec-kit-compound dashboard → {url}  (scanning {repo_root})", flush=True)
+    if args.open:
+        webbrowser.open(url)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nbye", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

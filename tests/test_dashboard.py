@@ -36,6 +36,11 @@ class TestParseTasks(unittest.TestCase):
 import os
 import tempfile
 import shutil
+import threading
+import urllib.request
+import urllib.error
+import json
+from http.server import HTTPServer
 
 
 def _write(path, text):
@@ -122,6 +127,44 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(state["compound"]["adr"], ["001-x.md"])
         self.assertEqual(state["compound"]["corrections"], ["2026-01-01-y.md"])
         self.assertEqual(state["compound"]["patterns"], [])
+
+
+class TestHttp(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        _write(os.path.join(self.root, "docs/intents/foo.intent.md"), "---\nslug: foo\n---\n")
+        handler = d.make_handler(self.root)
+        self.httpd = HTTPServer(("127.0.0.1", 0), handler)
+        self.port = self.httpd.server_address[1]
+        self.t = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.t.start()
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _get(self, path):
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}") as r:
+            return r.status, r.read().decode(), r.headers.get_content_type()
+
+    def test_root_serves_html(self):
+        status, body, ctype = self._get("/")
+        self.assertEqual(status, 200)
+        self.assertEqual(ctype, "text/html")
+        self.assertIn("<!doctype html", body.lower())
+
+    def test_api_state_serves_json(self):
+        status, body, ctype = self._get("/api/state")
+        self.assertEqual(status, 200)
+        self.assertEqual(ctype, "application/json")
+        state = json.loads(body)
+        self.assertEqual(state["features"][0]["slug"], "foo")
+        self.assertTrue(state["scanned_at"])  # real timestamp injected
+
+    def test_unknown_path_404(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self._get("/nope")
+        self.assertEqual(cm.exception.code, 404)
 
 
 class TestPageHtml(unittest.TestCase):
