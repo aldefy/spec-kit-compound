@@ -112,6 +112,18 @@ STAGES = [
 # String the gapfill command stamps into tasks.md for appended tests.
 _GAPFILL_MARKER = "speckit-compound-gapfill"
 
+STAGE_DESCRIPTIONS = {
+    "intent": "goal + constraints + failure conditions",
+    "expectations": "success + edge scenarios (validator-only)",
+    "specify": "spec.md from intent",
+    "plan": "design + architecture",
+    "tasks": "dependency-ordered task list",
+    "gapfill": "add missing constraint/failure/OOS tests",
+    "implement": "build (tasks checked off)",
+    "intentguard": "L3 validation -> PASS / REVIEW / BLOCKED",
+    "writeback": "persist ADRs / corrections / patterns",
+}
+
 
 def _read(path):
     try:
@@ -144,8 +156,10 @@ def _compute_states(stages):
     return stages
 
 
-def scan_state(repo_root, now=None):
+def scan_state(repo_root, now=None, home=None):
     repo_root = os.path.abspath(repo_root)
+    if home is None:
+        home = os.path.expanduser("~")
     intents = sorted(glob.glob(os.path.join(repo_root, "docs/intents/*.intent.md")))
 
     # Map normalized spec-dir name -> relative spec dir path.
@@ -176,9 +190,20 @@ def scan_state(repo_root, now=None):
         tasks_text = _read(os.path.join(spec_abs, "tasks.md")) if spec_abs else ""
         task_counts = parse_tasks(tasks_text)
 
-        guard_verdict = None
-        if os.path.isfile(guard_path):
-            guard_verdict = parse_frontmatter(_read(guard_path)).get("verdict")
+        intent_text = _read(intent_path)
+        exp_text = _read(exp_path) if os.path.isfile(exp_path) else ""
+        guard_text = _read(guard_path) if os.path.isfile(guard_path) else ""
+        guard_parsed = parse_intentguard(guard_text) if guard_text else {"verdict": None, "drift": []}
+        guard_verdict = guard_parsed["verdict"]
+
+        content = {
+            "goal": extract_goal(intent_text),
+            "constraints": extract_section(intent_text, "Constraints"),
+            "failures": extract_section(intent_text, "Failure conditions"),
+            "out_of_scope": extract_section(intent_text, "Out of scope"),
+            "expectations_positive": extract_section(exp_text, "Positive scenarios"),
+            "expectations_edge": extract_section(exp_text, "Edge / negative scenarios"),
+        }
 
         files = [os.path.relpath(intent_path, repo_root)]
         if os.path.isfile(exp_path):
@@ -202,6 +227,7 @@ def scan_state(repo_root, now=None):
         }
         stages["tasks"].update(done=task_counts["done"], total=task_counts["total"])
         stages["intentguard"]["verdict"] = guard_verdict
+        stages["intentguard"]["drift"] = guard_parsed["drift"]
 
         _compute_states(stages)
         if guard_verdict == "BLOCKED":
@@ -213,6 +239,7 @@ def scan_state(repo_root, now=None):
             "created": fm.get("created", ""),
             "spec_dir": rel_spec,
             "stages": stages,
+            "content": content,
             "files": files,
         })
 
@@ -235,9 +262,11 @@ def scan_state(repo_root, now=None):
         "scanned_at": now or "",
         "repo": os.path.basename(repo_root),
         "stages": STAGES,
+        "stage_descriptions": STAGE_DESCRIPTIONS,
         "features": features,
         "orphan_specs": orphan_specs,
         "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns")},
+        "tokens": scan_tokens(home, repo_root),
     }
 
 

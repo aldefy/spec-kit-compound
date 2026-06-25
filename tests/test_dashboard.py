@@ -129,6 +129,36 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(state["compound"]["patterns"], [])
 
 
+class TestScanStateV2(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.home = tempfile.mkdtemp()  # empty -> tokens unavailable, fine
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+        shutil.rmtree(self.home, ignore_errors=True)
+
+    def test_content_and_drift_merged(self):
+        _write(os.path.join(self.root, "docs/intents/k.intent.md"),
+               "---\nslug: k\n---\n# Intent: Do the thing.\n\n## Constraints\n- **C1**: be fast\n")
+        _write(os.path.join(self.root, "docs/expectations/k.expectations.md"),
+               "## Positive scenarios\n- **E1**: it works\n")
+        _write(os.path.join(self.root, "docs/intents/k.intentguard.md"),
+               "---\nverdict: REVIEW NEEDED\n---\n## L3b — Constraint check\n- **C1**: REVIEW -- unclear\n")
+        feat = d.scan_state(self.root, home=self.home)["features"][0]
+        self.assertEqual(feat["content"]["goal"], "Do the thing.")
+        self.assertEqual(feat["content"]["constraints"], ["**C1**: be fast"])
+        self.assertEqual(feat["content"]["expectations_positive"], ["**E1**: it works"])
+        self.assertEqual(feat["stages"]["intentguard"]["drift"][0]["severity"], "review")
+
+    def test_tokens_and_descriptions_present(self):
+        state = d.scan_state(self.root, home=self.home)
+        self.assertIn("tokens", state)
+        self.assertFalse(state["tokens"]["available"])  # empty home
+        self.assertEqual(state["stage_descriptions"]["intent"],
+                         "goal + constraints + failure conditions")
+
+
 class TestHttp(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
