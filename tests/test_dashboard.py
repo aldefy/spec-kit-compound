@@ -167,6 +167,46 @@ class TestHttp(unittest.TestCase):
         self.assertEqual(cm.exception.code, 404)
 
 
+class TestContentParsers(unittest.TestCase):
+    INTENT = (
+        "---\nslug: x\n---\n"
+        "# Intent: An agent cannot repeat a documented mistake.\n\n"
+        "## Constraints\n\n"
+        "- **C1**: p95 < 250ms\n"
+        "- **C2**: false-positive < 5%\n\n"
+        "## Failure conditions\n\n"
+        "- **F1**: Build fails\n\n"
+        "## Out of scope\n\n"
+        "- Multi-CLI support\n"
+    )
+
+    def test_extract_goal(self):
+        self.assertEqual(
+            d.extract_goal(self.INTENT),
+            "An agent cannot repeat a documented mistake.",
+        )
+
+    def test_extract_goal_absent(self):
+        self.assertEqual(d.extract_goal("# Heading only\n"), "")
+
+    def test_extract_section_constraints(self):
+        self.assertEqual(
+            d.extract_section(self.INTENT, "Constraints"),
+            ["**C1**: p95 < 250ms", "**C2**: false-positive < 5%"],
+        )
+
+    def test_extract_section_stops_at_next_heading(self):
+        self.assertEqual(d.extract_section(self.INTENT, "Failure conditions"),
+                         ["**F1**: Build fails"])
+
+    def test_extract_section_absent(self):
+        self.assertEqual(d.extract_section(self.INTENT, "Nonexistent"), [])
+
+    def test_extract_section_star_bullets(self):
+        self.assertEqual(d.extract_section("## Positive scenarios\n* E1 thing\n", "Positive scenarios"),
+                         ["E1 thing"])
+
+
 class TestPageHtml(unittest.TestCase):
     def test_is_self_contained_document(self):
         html = d.PAGE_HTML

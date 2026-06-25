@@ -39,6 +39,33 @@ def parse_tasks(text):
     return {"done": done, "total": total}
 
 
+_GOAL_RE = re.compile(r"^#\s*Intent:\s*(.+?)\s*$", re.MULTILINE)
+_BULLET_RE = re.compile(r"^\s*[-*]\s+(.*\S)\s*$")
+
+
+def extract_goal(text):
+    """Return the text after the first '# Intent:' marker, or ''."""
+    m = _GOAL_RE.search(text)
+    return m.group(1).strip() if m else ""
+
+
+def extract_section(text, header):
+    """Return stripped bullet lines under '## <header>' until the next '## ', or []."""
+    out = []
+    in_section = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if in_section:
+                break
+            in_section = line[3:].strip() == header
+            continue
+        if in_section:
+            m = _BULLET_RE.match(line)
+            if m:
+                out.append(m.group(1).strip())
+    return out
+
+
 import os
 import glob
 
