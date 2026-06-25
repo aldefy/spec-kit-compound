@@ -33,5 +33,96 @@ class TestParseTasks(unittest.TestCase):
         self.assertEqual(d.parse_tasks(text), {"done": 1, "total": 2})
 
 
+import os
+import tempfile
+import shutil
+
+
+def _write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(text)
+
+
+class TestScanState(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_empty_repo(self):
+        state = d.scan_state(self.root)
+        self.assertEqual(state["features"], [])
+        self.assertEqual(state["orphan_specs"], [])
+        self.assertEqual(state["stages"], d.STAGES)
+        self.assertEqual(state["compound"], {"adr": [], "corrections": [], "patterns": []})
+
+    def test_intent_only_feature(self):
+        _write(os.path.join(self.root, "docs/intents/foo.intent.md"),
+               "---\nslug: foo\nstatus: active\ncreated: 2026-01-01\n---\n# Intent\n")
+        state = d.scan_state(self.root)
+        self.assertEqual(len(state["features"]), 1)
+        feat = state["features"][0]
+        self.assertEqual(feat["slug"], "foo")
+        self.assertEqual(feat["status"], "active")
+        self.assertEqual(feat["stages"]["intent"]["state"], "done")
+        self.assertEqual(feat["stages"]["expectations"]["state"], "current")
+        self.assertEqual(feat["stages"]["specify"]["state"], "pending")
+        self.assertIsNone(feat["spec_dir"])
+
+    def test_join_strips_numeric_prefix_and_counts_tasks(self):
+        _write(os.path.join(self.root, "docs/intents/bar.intent.md"),
+               "---\nslug: bar\ncreated: 2026-01-01\n---\n")
+        _write(os.path.join(self.root, "docs/expectations/bar.expectations.md"), "x\n")
+        _write(os.path.join(self.root, "specs/007-bar/spec.md"), "spec\n")
+        _write(os.path.join(self.root, "specs/007-bar/plan.md"), "plan\n")
+        _write(os.path.join(self.root, "specs/007-bar/tasks.md"), "- [x] a\n- [ ] b\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["spec_dir"], "specs/007-bar")
+        # tasks.md exists -> tasks stage done; current advances to the next gap (gapfill)
+        self.assertEqual(feat["stages"]["tasks"]["state"], "done")
+        self.assertEqual(feat["stages"]["gapfill"]["state"], "current")
+        self.assertEqual(feat["stages"]["tasks"]["done"], 1)
+        self.assertEqual(feat["stages"]["tasks"]["total"], 2)
+        self.assertEqual(feat["stages"]["plan"]["state"], "done")
+
+    def test_implement_done_when_tasks_complete(self):
+        _write(os.path.join(self.root, "docs/intents/baz.intent.md"), "---\nslug: baz\n---\n")
+        _write(os.path.join(self.root, "specs/baz/tasks.md"), "- [x] a\n- [x] b\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["stages"]["implement"]["state"], "done")
+
+    def test_intentguard_blocked_sets_blocked_state(self):
+        _write(os.path.join(self.root, "docs/intents/q.intent.md"), "---\nslug: q\n---\n")
+        _write(os.path.join(self.root, "docs/intents/q.intentguard.md"),
+               "---\nverdict: BLOCKED\n---\n# report\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["stages"]["intentguard"]["verdict"], "BLOCKED")
+        self.assertEqual(feat["stages"]["intentguard"]["state"], "blocked")
+
+    def test_orphan_spec_dir(self):
+        _write(os.path.join(self.root, "specs/050-stray/spec.md"), "x\n")
+        state = d.scan_state(self.root)
+        self.assertEqual(state["features"], [])
+        self.assertEqual(len(state["orphan_specs"]), 1)
+        self.assertEqual(state["orphan_specs"][0]["dir"], "specs/050-stray")
+        self.assertIn("specify", state["orphan_specs"][0]["stages_present"])
+
+    def test_malformed_frontmatter_does_not_crash(self):
+        _write(os.path.join(self.root, "docs/intents/bad.intent.md"), "no frontmatter at all\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["slug"], "bad")  # slug falls back to filename
+        self.assertEqual(feat["stages"]["intent"]["state"], "done")
+
+    def test_compound_store_listed(self):
+        _write(os.path.join(self.root, "docs/compound/adr/001-x.md"), "x\n")
+        _write(os.path.join(self.root, "docs/compound/corrections/2026-01-01-y.md"), "y\n")
+        state = d.scan_state(self.root)
+        self.assertEqual(state["compound"]["adr"], ["001-x.md"])
+        self.assertEqual(state["compound"]["corrections"], ["2026-01-01-y.md"])
+        self.assertEqual(state["compound"]["patterns"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
