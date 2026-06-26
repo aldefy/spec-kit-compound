@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-06-26
+
+Dashboard redesign and a correctness fix. The pipeline view now reads documents on click, advances correctly when a spec dir's name differs from the intent slug, and is rebuilt in a monochrome instrument-panel aesthetic with dark/light modes.
+
+### Added
+
+- **Document viewer.** Each stage in the pipeline is clickable and opens that stage's document. Stages with parsed structure (intent, expectations, intentguard) show a summary with a toggle to the raw file; all other stages (spec, plan, tasks, gapfill) open the raw document directly. tasks.md renders as a checkbox list. Backed by a new sandboxed `/api/doc?path=` endpoint that refuses any path resolving outside the scanned repo (path-traversal and symlink-escape guarded).
+- **Per-stage file map (`stage_files`)** in `scan_state` output so the UI knows which document each stage node opens.
+- **Dark / light themes.** A segmented toggle (persisted to `localStorage`, defaulting to the OS preference) following the Nothing design system — OLED-black instrument panel in dark, off-white technical-manual in light.
+
+### Fixed
+
+- **Spec dirs no longer orphan when their name is a prefix of the intent slug.** A slug like `selective-forwarding-backend` now binds to the spec dir `255-selective-forwarding` via a hyphen-token-prefix match (exact normalized match still wins; token-level matching means `auth` does not match `oauth`). Previously the chain stalled at SPEC and the dir showed under "orphan specs" even though plan/tasks existed.
+
+### Changed
+
+- **Full UI redesign** to a monochrome, typographically driven layout: a master list of features beside a detail pane whose hero is the chain progress (`NN/09` in a dot-matrix display face plus the guard verdict), the 9-stage chain rendered as a segmented progress bar, and footer stat rows for the compound store and token spend. Color now encodes only state, applied to values rather than labels or backgrounds.
+- **Removed the architecture diagram card** — it described the dashboard's own plumbing, not the user's pipeline.
+- **`extension.yml`** version bumped to `0.4.1`.
+
 ## [0.4.0] — 2026-06-26
 
 Ships the read-only **pipeline dashboard** as a first-class extension command. Previously `dashboard.py` was a dev-only visualization tool that scanned only this repo; it now installs into host spec-kit projects (e.g. equal) and targets the host's own pipeline.

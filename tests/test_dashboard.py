@@ -92,6 +92,23 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(feat["stages"]["tasks"]["total"], 2)
         self.assertEqual(feat["stages"]["plan"]["state"], "done")
 
+    def test_fuzzy_matches_dir_prefix_of_slug(self):
+        # Real case from the equal repo: intent slug carries a suffix the spec
+        # dir omits — slug "selective-forwarding-backend" vs dir
+        # "255-selective-forwarding". Stripping NNN- leaves "selective-forwarding",
+        # which must still match so the chain advances instead of orphaning.
+        _write(os.path.join(self.root, "docs/intents/selective-forwarding-backend.intent.md"),
+               "---\nslug: selective-forwarding-backend\n---\n# Intent\n")
+        _write(os.path.join(self.root, "specs/255-selective-forwarding/spec.md"), "spec\n")
+        _write(os.path.join(self.root, "specs/255-selective-forwarding/plan.md"), "plan\n")
+        _write(os.path.join(self.root, "specs/255-selective-forwarding/tasks.md"), "- [ ] a\n")
+        state = d.scan_state(self.root)
+        self.assertEqual(state["orphan_specs"], [])  # not orphaned
+        feat = state["features"][0]
+        self.assertEqual(feat["spec_dir"], "specs/255-selective-forwarding")
+        self.assertEqual(feat["stages"]["specify"]["state"], "done")
+        self.assertEqual(feat["stages"]["plan"]["state"], "done")
+
     def test_implement_done_when_tasks_complete(self):
         _write(os.path.join(self.root, "docs/intents/baz.intent.md"), "---\nslug: baz\n---\n")
         _write(os.path.join(self.root, "specs/baz/tasks.md"), "- [x] a\n- [x] b\n")
@@ -195,6 +212,30 @@ class TestHttp(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             self._get("/nope")
         self.assertEqual(cm.exception.code, 404)
+
+    def test_api_doc_serves_file_content(self):
+        status, body, ctype = self._get("/api/doc?path=docs/intents/foo.intent.md")
+        self.assertEqual(status, 200)
+        self.assertEqual(ctype, "application/json")
+        doc = json.loads(body)
+        self.assertEqual(doc["path"], "docs/intents/foo.intent.md")
+        self.assertIn("slug: foo", doc["content"])
+
+    def test_api_doc_rejects_path_traversal(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self._get("/api/doc?path=../../../../etc/passwd")
+        self.assertEqual(cm.exception.code, 403)
+
+    def test_api_doc_missing_file_404(self):
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self._get("/api/doc?path=docs/intents/ghost.intent.md")
+        self.assertEqual(cm.exception.code, 404)
+
+    def test_stage_files_exposed(self):
+        status, body, _ = self._get("/api/state")
+        feat = json.loads(body)["features"][0]
+        self.assertIn("stage_files", feat)
+        self.assertEqual(feat["stage_files"]["intent"], "docs/intents/foo.intent.md")
 
 
 class TestContentParsers(unittest.TestCase):
@@ -330,20 +371,19 @@ class TestPageHtml(unittest.TestCase):
         html = d.PAGE_HTML
         self.assertIn("<!doctype html", html.lower())
         self.assertIn("/api/state", html)              # polls the endpoint
-        self.assertIn("01", html)                      # lane numbering present
         self.assertIn("prefers-reduced-motion", html)  # motion gate present
         self.assertNotIn("<script src=", html)
         self.assertNotIn('rel="stylesheet"', html)
 
-
-class TestPageHtmlV2(unittest.TestCase):
-    def test_new_panels_present_and_self_contained(self):
+    def test_master_detail_and_doc_viewer_present(self):
         html = d.PAGE_HTML
-        for anchor in ["flowchart", "drift", "About", "tokens", "renderContent"]:
+        # v3 redesign: master/detail layout, walkable chain, doc viewer
+        for anchor in ["master", "detail", "chainHtml", "renderViewer",
+                       "/api/doc", "stage_files", "renderDetail"]:
             self.assertIn(anchor, html)
+        self.assertNotIn("mermaid", html.lower())  # no CDN diagram lib
         self.assertNotIn("<script src=", html)
         self.assertNotIn('rel="stylesheet"', html)
-        self.assertNotIn("mermaid", html.lower())  # no CDN diagram lib
 
 
 class TestFindRepoRoot(unittest.TestCase):

@@ -136,25 +136,60 @@ Run once per project; never typed by hand during a feature.
 
 ## Install
 
-**Local dev:**
+Requires SpecKit (`specify`) ≥ 0.9 and `jq`. The extension is agent-agnostic — the same files install whether your harness is **Claude Code** or **Codex**; only the SpecKit `--integration` you initialized the project with differs. Run all commands from the **project root** (the directory holding `.specify/`).
+
+### 1. Initialize SpecKit with your agent (skip if already done)
 
 ```bash
-specify extension add compound --dev /path/to/spec-kit-compound
+# Claude Code
+specify init . --integration claude
+
+# Codex CLI
+specify init . --integration codex --integration-options="--skills"
+```
+
+### 2. Add the compound extension
+
+**Local dev** (the path is the positional argument; `--dev` is a flag):
+
+```bash
+specify extension add /path/to/spec-kit-compound --dev
 ```
 
 **Latest tagged release:**
 
 ```bash
-specify extension add compound --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.3.1.zip
+specify extension add compound --from https://github.com/aldefy/spec-kit-compound/archive/refs/tags/v0.4.0.zip
 ```
 
-**One-time per project**, opt into the v0.3+ tool-level hook:
+This installs all **9 commands** (the SDD chain + the v0.4 dashboard) into `.specify/extensions/compound/` for whichever agent the project was initialized with.
+
+### 3. Opt into the tool-level hook (one-time per project)
 
 ```
 /speckit-compound-install-hooks
 ```
 
-See [Two-layer enforcement](#two-layer-enforcement) for what this adds.
+Claude Code wires this into `.claude/settings.json` (`PreToolUse`). Under Codex the same shell-script hook contract applies; see [Two-layer enforcement](#two-layer-enforcement) for what it adds.
+
+### Upgrading an existing install
+
+`specify extension add` refuses if `compound` is already present — there is no in-place upgrade. Remove first, then re-add (your config is auto-backed up to `.specify/extensions/.backup/compound/`):
+
+```bash
+specify extension remove compound      # confirms; backs up config
+specify extension add /path/to/spec-kit-compound --dev
+```
+
+### Visualize the pipeline (v0.4)
+
+From the project root, in your agent:
+
+```
+/speckit-compound-dashboard
+```
+
+It backgrounds a read-only localhost server scanning **this** project and prints the URL. Or run it directly: `.specify/extensions/compound/scripts/dashboard.sh --repo "$(pwd)"`. Python 3 stdlib only — no dependencies.
 
 ---
 
