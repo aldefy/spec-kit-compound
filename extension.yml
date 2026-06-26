@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: compound
   name: "Spec-Kit Compound"
-  version: "0.3.1"
+  version: "0.4.1"
   description: "Intent-driven scoping (ICE), compound engineering memory with active enforcement, and L3 intent guard validation for SpecKit's SDD workflow."
   author: Adit Lal
   repository: https://github.com/aldefy/spec-kit-compound
@@ -46,6 +46,10 @@ provides:
     - name: speckit.compound.install-hooks
       file: commands/speckit.compound.install-hooks.md
       description: "One-shot installer (shell-script wrapper, v0.3+): copies the active-corrections PreToolUse hook script into .claude/hooks/ and merges the registration into .claude/settings.json with a pragmatic merge that preserves all other entries."
+
+    - name: speckit.compound.dashboard
+      file: commands/speckit.compound.dashboard.md
+      description: "Launch the read-only pipeline dashboard (v0.4): a self-contained localhost view of the SDD chain — intent, spec, plan, tasks, expectations, intentguard drift, token usage, architecture. Backgrounds dashboard.py; scans the current spec-kit project root."
 
 # v0.2.2: spec-kit before_specify gate.
 # v0.3.0: no new spec-kit hooks added — active-corrections runs via Claude Code's

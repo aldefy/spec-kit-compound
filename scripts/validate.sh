@@ -184,6 +184,38 @@ if [ -n "$SAMPLE_CORR" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Section 8: dashboard (v0.4)
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "Dashboard"
+
+if [ -f dashboard.py ]; then
+  if python3 -c "import ast; ast.parse(open('dashboard.py').read())" 2>/dev/null; then
+    pass "dashboard.py is valid Python"
+  else
+    fail "dashboard.py does not parse as valid Python"
+  fi
+else
+  fail "dashboard.py missing"
+fi
+
+if [ -x scripts/dashboard.sh ]; then
+  pass "scripts/dashboard.sh is executable"
+else
+  fail "scripts/dashboard.sh missing or not executable"
+fi
+
+if [ -f tests/test_dashboard.py ]; then
+  if python3 -m unittest discover -s tests >/dev/null 2>&1; then
+    pass "dashboard test suite passes"
+  else
+    fail "dashboard test suite fails (python3 -m unittest discover -s tests)"
+  fi
+else
+  fail "tests/test_dashboard.py missing"
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 echo ""
