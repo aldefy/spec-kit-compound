@@ -346,5 +346,46 @@ class TestPageHtmlV2(unittest.TestCase):
         self.assertNotIn("mermaid", html.lower())  # no CDN diagram lib
 
 
+class TestFindRepoRoot(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_anchors_on_specify_dir(self):
+        # Simulates an installed extension inside a spec-kit project:
+        #   <root>/.specify/extensions/compound/dashboard.py
+        # find_repo_root must return <root>, not the extension dir.
+        root = os.path.join(self.tmp, "equal")
+        ext = os.path.join(root, ".specify", "extensions", "compound")
+        os.makedirs(ext, exist_ok=True)
+        # extension dir also carries its own extension.yml (the decoy)
+        open(os.path.join(ext, "extension.yml"), "w").close()
+        self.assertEqual(d.find_repo_root(ext), root)
+
+    def test_dev_mode_falls_back_to_extension_yml(self):
+        # This repo has no .specify/ — anchor on extension.yml at the dev root.
+        root = os.path.join(self.tmp, "spec-kit-compound")
+        sub = os.path.join(root, "scripts", "bash")
+        os.makedirs(sub, exist_ok=True)
+        open(os.path.join(root, "extension.yml"), "w").close()
+        self.assertEqual(d.find_repo_root(sub), root)
+
+    def test_specify_wins_over_extension_yml(self):
+        # If both anchors exist on the path, the .specify/ project root wins.
+        root = os.path.join(self.tmp, "proj")
+        os.makedirs(os.path.join(root, ".specify"), exist_ok=True)
+        ext = os.path.join(root, ".specify", "extensions", "compound")
+        os.makedirs(ext, exist_ok=True)
+        open(os.path.join(ext, "extension.yml"), "w").close()
+        self.assertEqual(d.find_repo_root(ext), root)
+
+    def test_no_anchor_returns_start(self):
+        start = os.path.join(self.tmp, "loose")
+        os.makedirs(start, exist_ok=True)
+        self.assertEqual(d.find_repo_root(start), os.path.abspath(start))
+
+
 if __name__ == "__main__":
     unittest.main()

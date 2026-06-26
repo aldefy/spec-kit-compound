@@ -596,13 +596,26 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 def find_repo_root(start):
-    cur = os.path.abspath(start)
+    """Resolve the spec-kit project root to scan.
+
+    Walks up from ``start`` and prefers a ``.specify/`` directory (the spec-kit
+    project root — this is what holds ``docs/`` and ``specs/``, and is the
+    correct anchor when this script ships inside ``.specify/extensions/compound/``
+    of a host repo like equal). Falls back to a directory containing
+    ``extension.yml`` for dev mode in this repo, which has no ``.specify/``.
+    Returns ``start`` unchanged if neither anchor is found.
+    """
+    start = os.path.abspath(start)
+    extension_yml_root = None
+    cur = start
     while True:
-        if os.path.isfile(os.path.join(cur, "extension.yml")):
+        if os.path.isdir(os.path.join(cur, ".specify")):
             return cur
+        if extension_yml_root is None and os.path.isfile(os.path.join(cur, "extension.yml")):
+            extension_yml_root = cur
         parent = os.path.dirname(cur)
         if parent == cur:
-            return os.path.abspath(start)
+            return extension_yml_root or start
         cur = parent
 
 
@@ -635,9 +648,20 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="spec-kit-compound pipeline dashboard")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--open", action="store_true", help="open the dashboard in a browser")
+    ap.add_argument("--repo", default=None,
+                    help="path to the spec-kit project to scan (default: auto-detect from cwd, "
+                         "then this script's location)")
     args = ap.parse_args(argv)
 
-    repo_root = find_repo_root(os.path.dirname(os.path.abspath(__file__)))
+    if args.repo:
+        repo_root = os.path.abspath(args.repo)
+    else:
+        # Prefer the invocation cwd (the host repo when run from there), then
+        # fall back to the script's own location for dev mode.
+        repo_root = find_repo_root(os.getcwd())
+        if not os.path.isdir(os.path.join(repo_root, ".specify")) and \
+           not os.path.isfile(os.path.join(repo_root, "extension.yml")):
+            repo_root = find_repo_root(os.path.dirname(os.path.abspath(__file__)))
     handler = make_handler(repo_root)
 
     httpd = None

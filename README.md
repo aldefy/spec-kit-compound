@@ -271,7 +271,7 @@ Other 3 hook designs from `docs/hooks-research.md`:
 
 - **Multi-model orchestration** — Codex as a first-class subprocess. Phase config routes tools per phase (e.g. CC plans, Codex adversarially verifies, CC executes, Codex reviews). Cross-vendor verification breaks self-preferential bias structurally: Claude reviewing Claude shares training distribution; Codex reviewing Claude doesn't.
 - **Structured expectation outputs** — JSON-schema-typed expectations instead of free-form markdown. Insight from translating SRE skills to dynamic workflows: the schema is what forces the synthesizer to defer claims (emit `candidates`) so a separate verifier can adjudicate. Prose can ask for structural separation; only schema enforces it.
-- **CLAUDE.md auto-distillation** (`/speckit.compound.distill`) — promotes a shipped feature's convention constraints from `expectations.md` into project-level CLAUDE.md rules. Each feature compounds its learned conventions into the next — the literal "compound" in compound engineering.
+- **CLAUDE.md auto-distillation** (`/speckit-compound-distill`) — promotes a shipped feature's convention constraints from `expectations.md` into project-level CLAUDE.md rules. Each feature compounds its learned conventions into the next — the literal "compound" in compound engineering.
 - **Adversarial verification as a formal phase** — not implicit. Inputs: intent + plan + codebase. Output: structured drift report. Configurable drift threshold gate halts execution above the threshold.
 - **PR-time drift check** — CI workflow template that loads relevant `intent.md` constraints on every PR touching a feature area, adversarially checks whether constraints still hold, comments on the PR if drift is detected.
 
@@ -302,7 +302,7 @@ For the tool-level gates. The bash hook scripts themselves are CLI-agnostic; onl
 
 ### Open architecture questions (resolve before v0.4)
 
-- **Intent capture path** — `/speckit.compound.intent` vs `superpowers:brainstorming`. Currently overlapping. Unify (delegate intent capture to the skill), keep distinct (`intent.md` as the spec-kit-compound artifact), or compose (brainstorming produces a draft, `intent.md` formalizes)?
+- **Intent capture path** — `/speckit-compound-intent` vs `superpowers:brainstorming`. Currently overlapping. Unify (delegate intent capture to the skill), keep distinct (`intent.md` as the spec-kit-compound artifact), or compose (brainstorming produces a draft, `intent.md` formalizes)?
 - **Spec file format** — free-form markdown (today) vs frontmatter + machine-readable constraint IDs. Affects every downstream consumer (verifier, distiller, drift-check).
 - **Per-phase model + token budget** — global config, per-workflow config, or both? How does it interact with per-phase model routing from multi-model orchestration?
 - **Codex invocation surface** — subprocess (`codex exec`) vs HTTP (OpenAI SDK directly). Subprocess inherits Codex's harness/skills; HTTP is more portable but loses harness benefits.

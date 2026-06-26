@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-06-26
+
+Ships the read-only **pipeline dashboard** as a first-class extension command. Previously `dashboard.py` was a dev-only visualization tool that scanned only this repo; it now installs into host spec-kit projects (e.g. equal) and targets the host's own pipeline.
+
+### Added
+
+- **`/speckit.compound.dashboard` command.** A thin shell-script wrapper (`commands/speckit.compound.dashboard.md`) that launches `dashboard.py` as a background HTTP server, prints the localhost URL, and returns immediately instead of tying up the session. Renders the full SDD chain — intent, spec, plan, tasks, expectations, intentguard drift, token usage, architecture — for whichever spec-kit project it is run in. Registered in `extension.yml` `provides.commands`.
+- **`--repo PATH` flag on `dashboard.py`.** Scan an explicit spec-kit project root instead of auto-detecting. Auto-detect now resolves from the invocation cwd first, then the script's own location.
+- **`TestFindRepoRoot`** test class (4 cases) covering `.specify/` anchoring, dev-mode fallback, anchor precedence, and the no-anchor case.
+
+### Fixed
+
+- **`find_repo_root` scanned the wrong directory when installed.** It anchored on the nearest `extension.yml`, which in an installed host resolves to `.specify/extensions/compound/` — a directory with no `docs/` or `specs/`, so the dashboard rendered an empty chain. It now anchors on the `.specify/` project root (matching the other compound scripts), keeping `extension.yml` only as a dev-mode fallback for this repo, which has no `.specify/`.
+- **Two dotted `/speckit.*` slash-command references in `README.md`** (roadmap section) hyphenated to `/speckit-*`, satisfying the validate.sh rule that bans dotted references in active markdown.
+
+### Changed
+
+- **`scripts/dashboard.sh`** internal `REPO_ROOT` variable renamed to `SCRIPT_HOME` — it only locates `dashboard.py`; the scan target is now decided by `dashboard.py`'s `--repo`/cwd auto-detect.
+- **`extension.yml`** version bumped to `0.4.0`.
+
 ## [0.3.1] — 2026-06-03
 
 Hotfix. v0.3.0 shipped with four real bugs found during the live smoke test against the sample correction. All four are now fixed and verified end-to-end: the hook correctly blocks (exit 2) on matches, correctly allows (exit 0) on non-matches, honors both bypass mechanisms, and the structured stderr message is exactly the C3-specified format.
