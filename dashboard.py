@@ -397,9 +397,10 @@ PAGE_HTML = r"""<!doctype html>
   --mono:'Space Mono',ui-monospace,monospace;
 }
 :root[data-theme="light"]{
-  --black:#F5F5F5; --surface:#FFFFFF; --raised:#F0F0F0; --border:#E8E8E8; --border-vis:#CCCCCC;
-  --t-disabled:#999999; --t-secondary:#666666; --t-primary:#1A1A1A; --t-display:#000000;
-  --interactive:#007AFF;
+  /* warm low-glare paper — softer than bright white, easier on the eyes */
+  --black:#E7E2D8; --surface:#EFEBE2; --raised:#DED9CE; --border:#D2CCBE; --border-vis:#B7B0A0;
+  --t-disabled:#9A9485; --t-secondary:#6B6457; --t-primary:#2A2620; --t-display:#171410;
+  --interactive:#1F6FD6;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -725,7 +726,11 @@ function setTheme(th){
   try{ localStorage.setItem("skc-theme",th); }catch(e){}
 }
 document.querySelectorAll("#themeseg button").forEach(b=>b.onclick=()=>setTheme(b.dataset.th));
-(function(){ let t="dark"; try{ t=localStorage.getItem("skc-theme")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"); }catch(e){} setTheme(t); })();
+(function(){ let t="dark";
+  const q=new URLSearchParams(location.search).get("theme");   // ?theme=light|dark wins (shareable link / screenshots)
+  if(q==="light"||q==="dark"){ t=q; }
+  else{ try{ t=localStorage.getItem("skc-theme")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"); }catch(e){} }
+  setTheme(t); })();
 
 /* ── poll ── */
 async function poll(){

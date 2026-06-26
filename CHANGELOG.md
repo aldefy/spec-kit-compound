@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] — 2026-06-26
+
+Light-mode comfort, a shareable theme override, and README screenshots + cross-repo usage docs.
+
+### Added
+
+- **`?theme=light` / `?theme=dark` URL override** — forces a theme regardless of stored preference or OS setting. Useful for shareable links and for capturing screenshots.
+- **Dashboard screenshots** (`docs/img/dashboard-dark.png`, `dashboard-light.png`) embedded in the README, plus explicit instructions for starting the dashboard and pointing `--repo` at another spec-kit project.
+
+### Changed
+
+- **Warmer, lower-glare light theme.** Replaced the bright `#F5F5F5`/white paper with a warm sand palette (`#E7E2D8` page, text off pure black) to reduce eye strain. Dark mode is unchanged.
+- **`extension.yml`** version bumped to `0.4.2`.
+
 ## [0.4.1] — 2026-06-26
 
 Dashboard redesign and a correctness fix. The pipeline view now reads documents on click, advances correctly when a spec dir's name differs from the intent slug, and is rebuilt in a monochrome instrument-panel aesthetic with dark/light modes.

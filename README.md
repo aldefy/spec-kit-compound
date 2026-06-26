@@ -183,13 +183,39 @@ specify extension add /path/to/spec-kit-compound --dev
 
 ### Visualize the pipeline (v0.4)
 
-From the project root, in your agent:
+A read-only localhost view of the whole chain — features, stage progress, the intentguard verdict, and the document behind every stage (click any stage to read it). Monochrome instrument-panel UI with dark and light themes. Python 3 stdlib only — no dependencies.
+
+![Pipeline dashboard — dark](docs/img/dashboard-dark.png)
+![Pipeline dashboard — light](docs/img/dashboard-light.png)
+
+**Start it (scanning the current project):**
+
+In your agent, from the project root:
 
 ```
 /speckit-compound-dashboard
 ```
 
-It backgrounds a read-only localhost server scanning **this** project and prints the URL. Or run it directly: `.specify/extensions/compound/scripts/dashboard.sh --repo "$(pwd)"`. Python 3 stdlib only — no dependencies.
+Or run the launcher directly:
+
+```bash
+# installed into a host repo
+.specify/extensions/compound/scripts/dashboard.sh --open
+
+# from this repo (dev)
+./scripts/dashboard.sh --open
+```
+
+It backgrounds the server, prints the URL (`http://127.0.0.1:8787`, falls forward if busy), and re-scans every 3s. `--open` launches a browser; `--port N` picks a port.
+
+**View a different repo** — point `--repo` at any spec-kit project. You can run it from anywhere, including this repo, against another checkout:
+
+```bash
+# from spec-kit-compound, watch a different project's pipeline
+./scripts/dashboard.sh --repo /path/to/other-project --open
+```
+
+The dashboard reads only `docs/`, `specs/`, and `~/.claude` transcripts of the target — it never writes or runs chain commands. Append `?theme=light` (or `dark`) to the URL to force a theme.
 
 ---
 
