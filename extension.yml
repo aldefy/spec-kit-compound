@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: compound
   name: "Spec-Kit Compound"
-  version: "0.4.2"
+  version: "0.5.0"
   description: "Intent-driven scoping (ICE), compound engineering memory with active enforcement, and L3 intent guard validation for SpecKit's SDD workflow."
   author: Adit Lal
   repository: https://github.com/aldefy/spec-kit-compound
@@ -37,7 +37,7 @@ provides:
 
     - name: speckit.compound.intentguard
       file: commands/speckit.compound.intentguard.md
-      description: "L3 validation: diff vs intent's OOS, constraints, failure conditions, and expectations scenarios. Returns PASS / REVIEW NEEDED / BLOCKED."
+      description: "L3 validation by an INDEPENDENT checker (cross-model when available, v0.5+): seals locked intent + expectations + diff into a briefing the builder's context never touches, then dispatches judgment to a different model/context (Codex/Gemini → cross-tier Haiku → same-model fresh context). Records checked_by + independence tier. Returns PASS / REVIEW NEEDED / BLOCKED."
 
     - name: speckit.compound.require-intent
       file: commands/speckit.compound.require-intent.md

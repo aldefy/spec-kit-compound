@@ -34,3 +34,10 @@ Desktop.ini
 
 # Extension test artifacts (transient)
 .specify/extensions/.backup/
+
+# Local dev / session artifacts — not part of the published extension
+presentation/
+.impeccable/
+.claude/skills/
+# claude-mem auto-generated context dump (also keeps memory context private)
+AGENTS.md

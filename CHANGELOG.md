@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-06-27
+
+The intent guard becomes a genuinely **independent** checker, and the dashboard gains a live **implementation diff** — you can watch the code land and then watch a *different model* validate it against the locked intent.
+
+### Added
+
+- **Independent (cross-model) intent guard.** `/speckit-compound-intentguard` no longer judges L3 inline as the same agent that wrote the code. It runs the mechanical checks itself (L1 build/test/lint, L2 task-evidence), seals a **briefing** (`docs/intents/{slug}.intentguard.briefing.md`) containing only the locked intent, locked expectations, the git diff, and the mechanical results — *never the builder's context* — and dispatches all L3 judgment to an independent checker. The checker climbs an **independence ladder**: **Tier 1 cross-model** (a different vendor — builder Claude → `codex`/`gemini` via `codex exec -`; builder Codex → `claude`), **Tier 2 cross-tier** (a cheaper sibling such as Haiku, via a native subagent), or **Tier 3 same-model fresh-context** (last resort). The verdict file records `checked_by` and `independence_tier`, so the headline claim — *the builder and the checker never share a workspace* — is now literally true and never overstated. Policy is configurable via `SKC_CHECKER` (`auto` | `cross-model` | `same-family` | `same-model` | `cli:model`).
+- **Implementation diff view in the dashboard.** The IMPLEMENT stage — which produces code, not a markdown doc — is now clickable and renders the branch's git diff: a file tree (A/M/D with line counts) plus the full colored unified diff, including the contents of new untracked files. Harness plumbing and chain artifacts (`.specify/`, `.claude/`, `docs/intents|expectations|compound/`, `specs/`, `CLAUDE.md`) are excluded so only feature code shows. Backed by a new read-only `/api/diff` endpoint and a `scan_diff()` that never mutates the repo (`git diff`/`status`, untracked directories expanded with `-uall`).
+- **Per-stage document tabs.** Each pipeline stage shows a tab row of *its own* artifacts only — PLAN surfaces plan.md plus research / data-model / quickstart / contracts; SPEC surfaces spec.md plus its checklist — instead of one flat list of every file in the feature.
+- **Openable compound store.** ADRs, corrections, and patterns in the COMPOUND STORE panel are clickable buttons that open the document, replacing the bare counts.
+- **Font and zoom controls.** A header S/M/L/XL interface-font segment (persisted to `localStorage`, `?fs=` URL override) and independent per-document A−/A+ zoom in the viewer.
+- **Dashboard reuse-detect.** Re-running `/speckit-compound-dashboard` for a repo whose dashboard is already serving reattaches to it and prints the existing URL instead of spawning a duplicate on the next port.
+- **Clickable WRITEBACK stage.** The terminal stage now opens its output — the compound-store entries it persisted (ADRs, corrections, patterns) — as document tabs, so the whole pipeline INTENT→WRITEBACK is walkable and the store is reachable from the chain, not just the stats panel.
+
+### Changed
+
+- **The current stage animates (work-in-progress).** The active stage's bar pulses instead of showing a solid "done" fill, so an in-progress build reads as in-progress. Honors `prefers-reduced-motion`.
+- **Optional stages are visually distinct.** GAPFILL renders with a dashed bar and a dimmed label to signal it is safe to skip.
+- **The on-screen document refreshes live.** The currently-viewed document is refetched on each 3-second poll (in place, no flicker), so a file being actively written — e.g. gapfill appending to tasks.md — updates as it grows. Other documents stay cached until opened.
+- **Stage selection on load** lands on the latest *done/current* stage that has a document, rather than jumping ahead to a not-yet-run stage.
+- **README** dashboard section reframed to "launch it first," with an explicit order-of-operations that puts `/speckit-compound-dashboard` ahead of the chain.
+- **`extension.yml`** version bumped to `0.5.0`; the `speckit.compound.intentguard` command description rewritten for the independent/cross-model checker.
+
+### Fixed
+
+- **Task checkboxes no longer break across lines.** `- [ ]` / `- [x]` items rendered with the `[` and `]` splitting onto separate lines in a narrow viewer pane; the checkbox box is now `flex:0 0 auto` so it never shrinks or wraps.
+- **Stale document cache.** Once opened, a document was cached indefinitely and never reflected later writes (the "dashboard isn't refreshing" symptom). The on-screen document now live-refreshes each poll.
+- **WRITEBACK stage never completed.** It was hardcoded as never-done, so the pipeline could not reach full green even after writeback ran. It now lights up when the compound store holds an entry newer than the task list — a signal robust to a pre-seeded store (older entries stay "pending" until writeback actually runs) and to post-run edits of the guard report.
+
 ## [0.4.2] — 2026-06-26
 
 Light-mode comfort, a shareable theme override, and README screenshots + cross-repo usage docs.

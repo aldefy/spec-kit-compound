@@ -103,6 +103,7 @@ def parse_intentguard(text):
 
 import os
 import glob
+import subprocess
 
 STAGES = [
     "intent", "expectations", "specify", "plan",
@@ -131,6 +132,106 @@ def _read(path):
             return f.read()
     except OSError:
         return ""
+
+
+def _git(repo_root, *args, timeout=4):
+    """Run a read-only git command in repo_root; return stdout, or "" on any
+    failure (not a repo, git missing, timeout, non-zero exit). Never raises —
+    the dashboard must survive a repo with no git just as gracefully."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", repo_root, *args],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return r.stdout if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _git_base(repo_root):
+    """Merge-base of HEAD with the trunk (main, then master). "" if neither."""
+    for ref in ("main", "master"):
+        b = _git(repo_root, "merge-base", "HEAD", ref).strip()
+        if b:
+            return b
+    return ""
+
+
+def _numstat_int(tok):
+    return int(tok) if tok.isdigit() else 0
+
+
+# The IMPLEMENT diff is the feature's CODE. Exclude the harness's own plumbing
+# and the chain artifacts that already have their own stages (intent, spec,
+# plan, tasks, the compound store) — otherwise the diff drowns in non-code.
+_DIFF_EXCLUDE = [
+    ".", ":!.specify", ":!.claude", ":!.git", ":!.impeccable",
+    ":!docs/intents", ":!docs/expectations", ":!docs/compound",
+    ":!specs", ":!CLAUDE.md", ":!AGENTS.md", ":!.DS_Store",
+]
+
+
+def scan_diff(repo_root, full=False):
+    """Summarize the working branch vs trunk: changed-file list (+counts), and —
+    when full=True — the unified diff text (tracked changes plus the contents of
+    new untracked files, read-only). This is the IMPLEMENT stage's artifact: the
+    code itself. Light by default so /api/state polling stays fast."""
+    base = _git_base(repo_root)
+    files, seen, untracked = [], set(), []
+
+    status_letter = {}
+    if base:
+        for line in _git(repo_root, "diff", base, "--name-status", "--", *_DIFF_EXCLUDE).splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                status_letter[parts[-1]] = parts[0][:1]
+        for line in _git(repo_root, "diff", base, "--numstat", "--", *_DIFF_EXCLUDE).splitlines():
+            parts = line.split("\t")
+            if len(parts) == 3:
+                path = parts[2]
+                files.append({
+                    "path": path,
+                    "add": _numstat_int(parts[0]),
+                    "del": _numstat_int(parts[1]),
+                    "status": status_letter.get(path, "M"),
+                })
+                seen.add(path)
+
+    for line in _git(repo_root, "status", "--porcelain", "-uall", "--", *_DIFF_EXCLUDE).splitlines():
+        st, path = line[:2], line[3:].strip()
+        if "?" in st and path and path not in seen:
+            files.append({"path": path, "add": 0, "del": 0, "status": "A"})
+            seen.add(path)
+            untracked.append(path)
+
+    files.sort(key=lambda f: f["path"])
+    out = {
+        "base": base[:9],
+        "count": len(files),
+        "additions": sum(f["add"] for f in files),
+        "deletions": sum(f["del"] for f in files),
+        "files": files,
+    }
+
+    if full:
+        text = _git(repo_root, "diff", base, "--", *_DIFF_EXCLUDE) if base else ""
+        extra = []
+        for path in untracked:
+            ap = os.path.join(repo_root, path)
+            try:
+                if os.path.isfile(ap) and os.path.getsize(ap) < 100_000:
+                    c = _read(ap)
+                    if c and "\x00" not in c[:2000]:  # skip binary
+                        body = "\n".join("+" + ln for ln in c.split("\n")[:200])
+                        extra.append(
+                            "diff --git a/{p} b/{p}\nnew file\n--- /dev/null\n+++ b/{p}\n{b}".format(p=path, b=body)
+                        )
+            except Exception:
+                pass
+        if extra:
+            text = (text + "\n" + "\n".join(extra)) if text else "\n".join(extra)
+        out["text"] = text[:90_000]
+    return out
 
 
 def _normalize(name):
@@ -183,6 +284,23 @@ def _compute_states(stages):
     return stages
 
 
+def _store_latest_mtime(repo_root):
+    """Newest mtime across the compound store (adr/corrections/patterns), or 0.0
+    if empty. Lets writeback be marked done only when a store file is newer than
+    this run's guard verdict — so a *pre-seeded* store (older files, e.g. after a
+    fresh checkout) does NOT falsely light writeback before it actually runs."""
+    latest = 0.0
+    for sub in ("adr", "corrections", "patterns"):
+        d = os.path.join(repo_root, "docs/compound", sub)
+        if os.path.isdir(d):
+            for f in glob.glob(os.path.join(d, "*.md")):
+                try:
+                    latest = max(latest, os.path.getmtime(f))
+                except OSError:
+                    pass
+    return latest
+
+
 def scan_state(repo_root, now=None, home=None):
     repo_root = os.path.abspath(repo_root)
     if home is None:
@@ -200,6 +318,7 @@ def scan_state(repo_root, now=None, home=None):
 
     features = []
     matched_dirs = set()
+    store_mtime = _store_latest_mtime(repo_root)
     for intent_path in intents:
         fname = os.path.basename(intent_path)
         slug_from_file = fname[: -len(".intent.md")]
@@ -215,7 +334,9 @@ def scan_state(repo_root, now=None, home=None):
         exp_path = os.path.join(repo_root, "docs/expectations", slug + ".expectations.md")
         guard_path = os.path.join(repo_root, "docs/intents", slug + ".intentguard.md")
 
-        tasks_text = _read(os.path.join(spec_abs, "tasks.md")) if spec_abs else ""
+        tasks_file = os.path.join(spec_abs, "tasks.md") if spec_abs else None
+        tasks_text = _read(tasks_file) if tasks_file else ""
+        tasks_mtime = os.path.getmtime(tasks_file) if (tasks_file and os.path.isfile(tasks_file)) else 0.0
         task_counts = parse_tasks(tasks_text)
 
         intent_text = _read(intent_path)
@@ -251,7 +372,13 @@ def scan_state(repo_root, now=None, home=None):
             "gapfill": done(_GAPFILL_MARKER in tasks_text),
             "implement": done(task_counts["total"] > 0 and task_counts["done"] == task_counts["total"]),
             "intentguard": done(os.path.isfile(guard_path)),
-            "writeback": done(False),
+            # writeback is done when the guard has run AND the store has a file
+            # newer than the task list — i.e. a writeback happened in this feature
+            # cycle. Anchored on tasks.md (stable, pre-writeback) rather than the
+            # guard verdict, which may be edited after the run (e.g. appending a
+            # material-finding note). A pre-seeded store (older than a freshly
+            # re-run tasks.md) correctly stays "pending" until writeback runs.
+            "writeback": done(os.path.isfile(guard_path) and store_mtime > tasks_mtime),
         }
         stages["tasks"].update(done=task_counts["done"], total=task_counts["total"])
         stages["intentguard"]["verdict"] = guard_verdict
@@ -278,6 +405,49 @@ def scan_state(repo_root, now=None, home=None):
         if os.path.isfile(guard_path):
             stage_files["intentguard"] = _rel(guard_path)
 
+        # Every document this feature produced — chain docs in pipeline order,
+        # then extras (research / data-model / contracts / checklists) — so the
+        # viewer can tab through all of them, not just the one-per-stage file.
+        doc_list = []
+        doc_stage = {}
+        for _st in STAGES:
+            _fp = stage_files.get(_st)
+            if _fp and _fp not in doc_list:
+                doc_list.append(_fp)
+                doc_stage[_fp] = _st
+        if spec_abs and os.path.isdir(spec_abs):
+            for _root, _dirs, _fnames in os.walk(spec_abs):
+                for _fn in sorted(_fnames):
+                    if _fn.endswith(".md"):
+                        _rp = _rel(os.path.join(_root, _fn))
+                        if _rp not in doc_list:
+                            doc_list.append(_rp)
+                            # Extras belong to the stage that produces them:
+                            # checklists validate the spec; research / data-model /
+                            # quickstart / contracts are all /speckit.plan outputs.
+                            doc_stage[_rp] = "specify" if "/checklists/" in _rp.replace(os.sep, "/") else "plan"
+
+        # Compound store = writeback's output. List each entry under the writeback
+        # stage so the stage is clickable and tabs through what it persisted.
+        _newest_store, _newest_m = None, -1.0
+        for _sub in ("adr", "corrections", "patterns"):
+            _sd = os.path.join(repo_root, "docs/compound", _sub)
+            if not os.path.isdir(_sd):
+                continue
+            for _sf in sorted(glob.glob(os.path.join(_sd, "*.md"))):
+                _rp = _rel(_sf)
+                if _rp not in doc_list:
+                    doc_list.append(_rp)
+                doc_stage[_rp] = "writeback"
+                try:
+                    _m = os.path.getmtime(_sf)
+                    if _m > _newest_m:
+                        _newest_m, _newest_store = _m, _rp
+                except OSError:
+                    pass
+        if _newest_store:
+            stage_files["writeback"] = _newest_store
+
         features.append({
             "slug": slug,
             "status": fm.get("status", ""),
@@ -287,6 +457,8 @@ def scan_state(repo_root, now=None, home=None):
             "stage_files": {k: v for k, v in stage_files.items() if v},
             "content": content,
             "files": files,
+            "docs": doc_list,
+            "doc_stage": doc_stage,
         })
 
     orphan_specs = []
@@ -313,6 +485,7 @@ def scan_state(repo_root, now=None, home=None):
         "orphan_specs": orphan_specs,
         "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns")},
         "tokens": scan_tokens(home, repo_root),
+        "diff": scan_diff(repo_root),
     }
 
 
@@ -395,6 +568,8 @@ PAGE_HTML = r"""<!doctype html>
   --display:'Doto',"Space Mono",monospace;
   --ui:'Space Grotesk',system-ui,sans-serif;
   --mono:'Space Mono',ui-monospace,monospace;
+  --fs:1;  /* global font-size multiplier — driven by the TEXT size control */
+  --docfs:1;  /* document-pane zoom — driven by the A−/A+ control in the viewer header */
 }
 :root[data-theme="light"]{
   /* warm low-glare paper — softer than bright white, easier on the eyes */
@@ -405,26 +580,26 @@ PAGE_HTML = r"""<!doctype html>
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--black);color:var(--t-primary);font-family:var(--ui);
-  font-size:14px;line-height:1.5;font-weight:300;-webkit-font-smoothing:antialiased;
+  font-size:calc(14px * var(--fs));line-height:1.5;font-weight:300;-webkit-font-smoothing:antialiased;
   display:flex;flex-direction:column;height:100vh;overflow:hidden;
   transition:background .3s cubic-bezier(.25,.1,.25,1),color .3s cubic-bezier(.25,.1,.25,1)}
 
 /* labels: Space Mono ALL CAPS — the one consistent voice */
-.lbl{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-secondary)}
+.lbl{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.08em;text-transform:uppercase;color:var(--t-secondary)}
 .lbl-dim{color:var(--t-disabled)}
 
 /* ── header ── */
 header{display:flex;justify-content:space-between;align-items:center;
   padding:0 24px;height:56px;border-bottom:1px solid var(--border);flex:none;gap:20px}
-.wordmark{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-primary);white-space:nowrap}
+.wordmark{font-family:var(--mono);font-size:calc(12px * var(--fs));letter-spacing:.1em;text-transform:uppercase;color:var(--t-primary);white-space:nowrap}
 .wordmark .repo{color:var(--t-disabled)}
 .hctl{display:flex;gap:20px;align-items:center}
-.heartbeat{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-secondary)}
+.heartbeat{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.06em;text-transform:uppercase;color:var(--t-secondary)}
 .heartbeat .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
 .heartbeat.stale .dot{background:var(--t-disabled)}
 /* theme toggle: segmented control */
 .seg{display:flex;border:1px solid var(--border-vis);border-radius:6px;overflow:hidden}
-.seg button{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+.seg button{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.08em;text-transform:uppercase;
   background:transparent;color:var(--t-secondary);border:0;padding:6px 11px;cursor:pointer;transition:.2s ease-out}
 .seg button.on{background:var(--t-display);color:var(--black)}
 
@@ -436,7 +611,7 @@ header{display:flex;justify-content:space-between;align-items:center;
 .feat:hover{background:var(--surface)}
 .feat.sel{background:var(--surface)}
 .feat.sel .name{color:var(--t-display)}
-.feat .name{font-family:var(--ui);font-weight:400;font-size:14px;color:var(--t-primary);
+.feat .name{font-family:var(--ui);font-weight:400;font-size:calc(14px * var(--fs));color:var(--t-primary);
   word-break:break-word;line-height:1.3}
 .feat .meta{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 /* mini segmented bar */
@@ -444,7 +619,7 @@ header{display:flex;justify-content:space-between;align-items:center;
 .minibar i{flex:1;height:4px;background:var(--border)}
 .minibar i.done{background:var(--t-display)} .minibar i.current{background:var(--success)}
 .minibar i.blocked{background:var(--accent)}
-.statetxt{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.statetxt{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.06em;text-transform:uppercase}
 .statetxt.pass{color:var(--success)} .statetxt.blocked{color:var(--accent)}
 .statetxt.review{color:var(--warning)} .statetxt.none{color:var(--t-disabled)}
 
@@ -455,75 +630,98 @@ header{display:flex;justify-content:space-between;align-items:center;
 /* HERO — the one expressive moment (Section 2.6 single break) */
 .hero{padding:48px 0 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
 .hero .left{display:flex;align-items:baseline;gap:16px}
-.bignum{font-family:var(--display);font-weight:700;font-size:96px;line-height:.9;letter-spacing:-.03em;color:var(--t-display)}
+.bignum{font-family:var(--display);font-weight:700;font-size:calc(96px * var(--fs));line-height:.9;letter-spacing:-.03em;color:var(--t-display)}
 .bignum .of{color:var(--t-disabled)}
 .heroside{display:flex;flex-direction:column;gap:6px;padding-bottom:10px}
-.herostate{font-family:var(--mono);font-weight:700;font-size:18px;letter-spacing:.04em;text-transform:uppercase}
+.herostate{font-family:var(--mono);font-weight:700;font-size:calc(18px * var(--fs));letter-spacing:.04em;text-transform:uppercase}
 .herostate.pass{color:var(--success)} .herostate.blocked{color:var(--accent)}
 .herostate.review{color:var(--warning)} .herostate.none{color:var(--t-secondary)}
-.heroname{font-family:var(--ui);font-weight:500;font-size:24px;letter-spacing:-.01em;color:var(--t-display);max-width:46ch;line-height:1.15}
+.heroname{font-family:var(--ui);font-weight:500;font-size:calc(24px * var(--fs));letter-spacing:-.01em;color:var(--t-display);max-width:46ch;line-height:1.15}
 .herofacts{display:flex;gap:18px;flex-wrap:wrap;margin-top:4px}
 .herofacts .lbl span{color:var(--t-primary);font-family:var(--mono);text-transform:none;letter-spacing:0}
-.goal{font-family:var(--ui);font-weight:300;font-size:16px;line-height:1.55;color:var(--t-primary);max-width:68ch;margin:24px 0 0}
+.goal{font-family:var(--ui);font-weight:300;font-size:calc(16px * var(--fs));line-height:1.55;color:var(--t-primary);max-width:68ch;margin:24px 0 0}
 
 /* ── the chain: segmented progress bar (signature viz) ── */
 .chainhd{display:flex;justify-content:space-between;align-items:baseline;margin:40px 0 12px}
+.chainhint{color:var(--interactive);letter-spacing:.08em}
 .chain{display:flex;gap:3px}
 .stage{flex:1;min-width:0;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;
   font-family:inherit;color:inherit;display:flex;flex-direction:column;gap:8px}
 .stage:disabled{cursor:default}
 .stage .blk{height:10px;background:var(--border);transition:background .2s ease-out}
 .stage.done .blk{background:var(--t-display)}
-.stage.current .blk{background:var(--success)}
+.stage.current .blk{background:var(--success);animation:wip 1.3s ease-in-out infinite}
+@keyframes wip{0%,100%{opacity:1}50%{opacity:.35}}
 .stage.blocked .blk{background:var(--accent)}
-.stage .cap{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--t-disabled);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage .cap{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.05em;text-transform:uppercase;color:var(--t-disabled);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stage.done .cap,.stage.current .cap{color:var(--t-secondary)}
+.stage:not(:disabled) .cap{text-decoration:underline dotted var(--t-disabled);text-underline-offset:3px;text-decoration-thickness:1px}
+.stage:not(:disabled):hover .blk{background:var(--t-secondary)}
+.stage:not(:disabled):hover .cap{color:var(--t-primary);text-decoration-style:solid}
 .stage.sel .blk{outline:1px solid var(--interactive);outline-offset:2px}
-.stage.sel .cap{color:var(--interactive)}
-.stage:not(:disabled):hover .cap{color:var(--t-primary)}
-.stage .num{font-family:var(--mono);font-size:9px;color:var(--t-disabled);letter-spacing:.05em}
+.stage.sel .cap{color:var(--interactive);text-decoration-style:solid;text-decoration-color:var(--interactive)}
+.stage .num{font-family:var(--mono);font-size:calc(9px * var(--fs));color:var(--t-disabled);letter-spacing:.05em}
 
 /* ── doc viewer ── */
 .viewer{margin-top:36px}
 .vh{display:flex;justify-content:space-between;align-items:center;gap:16px;
   padding-bottom:12px;border-bottom:1px solid var(--border)}
-.vh .path{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--t-secondary);word-break:break-all}
+.vh .path{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.04em;color:var(--t-secondary);word-break:break-all}
 .vh .path b{color:var(--t-primary);text-transform:uppercase;letter-spacing:.08em}
-.vbody{padding:18px 0 0;max-height:46vh;overflow:auto}
-.vbody h3{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+.vctl{display:flex;gap:10px;align-items:center}
+.vbody{padding:18px 0 0;max-height:46vh;overflow:auto;zoom:var(--docfs)}
+.vbody h3{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.08em;text-transform:uppercase;
   color:var(--t-secondary);margin:22px 0 10px} .vbody h3:first-child{margin-top:0}
 .vbody ul{margin:0;padding:0;list-style:none}
-.vbody li{font-family:var(--ui);font-weight:300;font-size:14px;color:var(--t-primary);
+.vbody li{font-family:var(--ui);font-weight:300;font-size:calc(14px * var(--fs));color:var(--t-primary);
   padding:7px 0;border-bottom:1px solid var(--border);line-height:1.45}
 .vbody .raw{font-family:var(--mono);font-size:12.5px;line-height:1.7;white-space:pre-wrap;
   word-break:break-word;color:var(--t-primary);margin:0}
-.vbody .tasklist li{font-family:var(--mono);font-size:12px;display:flex;gap:10px}
-.vbody .tasklist li .box{color:var(--t-disabled)}
+.vbody .tasklist li{font-family:var(--mono);font-size:calc(12px * var(--fs));display:flex;gap:10px;align-items:baseline}
+.vbody .tasklist li .box{color:var(--t-disabled);flex:0 0 auto;white-space:nowrap}
+.dtree{margin:12px 0 0;border:1px solid var(--border-vis);border-radius:6px;padding:8px 10px;max-height:22vh;overflow:auto}
+.dfile{display:flex;align-items:baseline;gap:10px;font-family:var(--mono);font-size:calc(11px * var(--fs));padding:2px 0}
+.dst{flex:0 0 auto;width:14px;text-align:center;font-weight:700}
+.dst.dA{color:var(--success)} .dst.dM{color:var(--interactive)} .dst.dD{color:var(--accent)} .dst.dR{color:var(--warning)}
+.dpath{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t-primary)}
+.dnum{flex:0 0 auto;color:var(--t-disabled);font-size:calc(10px * var(--fs));letter-spacing:.04em}
+.vbody .diff{font-family:var(--mono);font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin:0}
+.diff .dadd{color:var(--success)} .diff .ddel{color:var(--accent)} .diff .dhunk{color:var(--interactive)} .diff .dmeta{color:var(--t-disabled)}
+.dadd{color:var(--success)} .ddel{color:var(--accent)}
+.stage.optional .blk{background:transparent;border:1px dashed var(--t-disabled)}
+.stage.optional.done .blk{background:var(--t-display);border-color:var(--t-display)}
+.stage.optional .cap{opacity:.7}
 .vbody .tasklist li.x .box{color:var(--success)}
-.vbody .loading{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-disabled)}
+.vbody .loading{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.08em;text-transform:uppercase;color:var(--t-disabled)}
 .vbody .drift li.blocked{color:var(--accent)} .vbody .drift li.review{color:var(--warning)}
-.vbody .drift b{font-family:var(--mono);font-size:11px;letter-spacing:.06em;margin-right:8px}
-.gbadge{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.vbody .drift b{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.06em;margin-right:8px}
+.gbadge{font-family:var(--mono);font-size:calc(12px * var(--fs));letter-spacing:.06em;text-transform:uppercase}
 .gbadge.pass{color:var(--success)} .gbadge.blocked{color:var(--accent)} .gbadge.review{color:var(--warning)}
 
 /* ── footer stats: stat rows, no cards ── */
 .stats{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:0 48px}
 .statgroup{border-top:1px solid var(--border-vis);padding-top:14px}
 .statrow{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;gap:12px}
-.statrow .k{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-secondary)}
-.statrow .v{font-family:var(--mono);font-size:13px;color:var(--t-primary)}
+.statrow .k{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.06em;text-transform:uppercase;color:var(--t-secondary)}
+.statrow .v{font-family:var(--mono);font-size:calc(13px * var(--fs));color:var(--t-primary)}
 .statrow .v.dim{color:var(--t-disabled)}
-.storelist{font-family:var(--mono);font-size:11px;color:var(--t-disabled);line-height:1.7;margin-top:8px;word-break:break-word}
-.footnote{margin-top:40px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-disabled)}
+.storelist{font-family:var(--mono);font-size:calc(11px * var(--fs));color:var(--t-disabled);line-height:1.7;margin-top:8px;word-break:break-word;display:flex;flex-wrap:wrap;gap:6px}
+.storedoc{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.04em;background:transparent;color:var(--t-secondary);border:1px solid var(--border-vis);border-radius:5px;padding:4px 9px;cursor:pointer;transition:.15s ease-out}
+.storedoc:hover{color:var(--t-display);border-color:var(--t-display)}
+.doctabs{display:flex;flex-wrap:wrap;gap:5px;margin:14px 0 0}
+.doctabs button{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--t-secondary);border:1px solid var(--border-vis);border-radius:5px;padding:5px 10px;cursor:pointer;transition:.15s ease-out}
+.doctabs button.on{background:var(--t-display);color:var(--black);border-color:var(--t-display)}
+.doctabs button:hover{color:var(--t-display)}
+.footnote{margin-top:40px;font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.06em;text-transform:uppercase;color:var(--t-disabled)}
 
 @media (max-width:860px){
   .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   .master{border-right:0;border-bottom:1px solid var(--border);max-height:32vh}
   .detail{padding:0 22px 64px}
-  .bignum{font-size:64px}
+  .bignum{font-size:calc(64px * var(--fs))}
   .stats{grid-template-columns:1fr;gap:0}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -533,6 +731,12 @@ header{display:flex;justify-content:space-between;align-items:center;
     <div class="seg" id="themeseg">
       <button data-th="dark" class="on">DARK</button>
       <button data-th="light">LIGHT</button>
+    </div>
+    <div class="seg" id="fontseg" title="text size">
+      <button data-fs="1" class="on">S</button>
+      <button data-fs="1.2">M</button>
+      <button data-fs="1.45">L</button>
+      <button data-fs="1.75">XL</button>
     </div>
     <div class="heartbeat" id="hb"><span class="dot"></span><span id="hbtxt">CONNECTING</span></div>
   </div>
@@ -545,8 +749,8 @@ header{display:flex;justify-content:space-between;align-items:center;
 
 <script>
 const LABELS={intent:"INTENT",expectations:"EXPECT",specify:"SPEC",plan:"PLAN",tasks:"TASKS",gapfill:"GAPFILL",implement:"IMPL",intentguard:"GUARD",writeback:"WRITEBACK"};
-let STATE=null, SEL=null, SELSTAGE=null, VIEWMODE="summary";
-const docCache={};
+let STATE=null, SEL=null, SELSTAGE=null, SELDOC=null, VIEWMODE="summary";
+const docCache={}; let DOCSHOWN=null, DIFFTEXT=null;
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function human(n){return n>=1e6?(n/1e6).toFixed(2)+"M":n>=1e3?(n/1e3).toFixed(0)+"K":String(n);}
@@ -593,6 +797,18 @@ function renderMaster(){
 /* ── detail ── */
 function feature(){ return (STATE.features||[]).find(f=>f.slug===SEL); }
 
+function docLabel(p){
+  const parts=p.split('/'); let f=parts.pop().replace(/\.md$/,'');
+  const m=f.match(/\.(intent|expectations|intentguard)$/); if(m) f=m[1];
+  const dir=parts.pop()||'';
+  const pre=dir==='contracts'?'CONTRACT·':dir==='checklists'?'CHECK·':'';
+  return (pre+f).toUpperCase();
+}
+function stageForDoc(feat,path){ const ds=feat.doc_stage||{}; if(ds[path]) return ds[path]; const sf=feat.stage_files||{}; for(const k in sf){ if(sf[k]===path) return k; } return ""; }
+function docsForStage(feat,stage){ const ds=feat.doc_stage||{}, sf=feat.stage_files||{}, all=feat.docs||[]; const out=all.filter(d=>ds[d]===stage); const own=sf[stage]; if(own && out.indexOf(own)<0) out.unshift(own); return out; }
+function openDoc(p){ SELDOC=p; renderViewer(); }
+function showSummary(stage){ SELSTAGE=stage; SELDOC=null; VIEWMODE="summary"; renderViewer(); }
+
 function hasSummary(feat,stage){
   const c=feat.content||{};
   if(stage==="intent") return !!(c.goal||(c.constraints||[]).length||(c.failures||[]).length||(c.out_of_scope||[]).length);
@@ -630,34 +846,83 @@ async function fetchDoc(path){
   catch(e){ docCache[path]={content:"[ FAILED TO LOAD ]"}; }
   return docCache[path];
 }
+async function fetchDiff(){
+  try{ const r=await fetch("/api/diff",{cache:"no-store"}); DIFFTEXT=await r.json(); }
+  catch(e){ DIFFTEXT={files:[],text:"[ FAILED TO LOAD DIFF ]"}; }
+  return DIFFTEXT;
+}
+function diffLineCls(l){
+  if(l.startsWith("+")&&!l.startsWith("+++")) return "dadd";
+  if(l.startsWith("-")&&!l.startsWith("---")) return "ddel";
+  if(l.startsWith("@@")) return "dhunk";
+  if(l.startsWith("diff ")||l.startsWith("new file")||l.startsWith("+++")||l.startsWith("---")||l.startsWith("index ")) return "dmeta";
+  return "";
+}
+function diffHtml(text){
+  if(!text) return `<div class="loading">[ NO TEXT DIFF YET ]</div>`;
+  return `<pre class="diff">`+text.split("\n").map(l=>`<span class="${diffLineCls(l)}">${esc(l)}</span>`).join("\n")+`</pre>`;
+}
+function renderDiffView(feat,wrap){
+  const meta=STATE.diff||{files:[],count:0,additions:0,deletions:0};
+  if(DIFFTEXT===null) fetchDiff().then(()=>renderViewer());
+  const tree=meta.files.length
+    ? meta.files.map(f=>{ const num=(f.add?("+"+f.add+" "):"")+(f.del?("−"+f.del):"");
+        return `<div class="dfile"><span class="dst d${esc(f.status)}">${esc(f.status)}</span><span class="dpath" title="${esc(f.path)}">${esc(f.path)}</span><span class="dnum">${esc(num)}</span></div>`; }).join("")
+    : `<div class="loading">[ NO FILE CHANGES YET — IMPLEMENT HASN'T WRITTEN CODE ]</div>`;
+  wrap.innerHTML=`<div class="vh">
+      <div class="path">GIT DIFF · vs ${esc(meta.base||"main")} · ${meta.count} FILE${meta.count===1?"":"S"} · <span class="dadd">+${meta.additions}</span> <span class="ddel">−${meta.deletions}</span></div>
+      <div class="vctl"><div class="seg vzoom"><button data-dz="-1" title="smaller document text">A−</button><button data-dz="1" title="larger document text">A+</button></div></div>
+    </div>
+    <div class="dtree">${tree}</div>
+    <div class="vbody">${diffHtml((DIFFTEXT||{}).text)}</div>`;
+  wrap.querySelectorAll(".vzoom button").forEach(b=>b.onclick=()=>docZoom(parseInt(b.dataset.dz)));
+}
 
 function renderViewer(){
   const feat=feature(), wrap=document.getElementById("viewer");
   if(!wrap) return;
-  if(!SELSTAGE){ wrap.innerHTML=`<div class="vbody"><div class="loading">[ SELECT A STAGE TO READ ITS DOCUMENT ]</div></div>`; return; }
-  const path=(feat.stage_files||{})[SELSTAGE], label=LABELS[SELSTAGE]||SELSTAGE, summaryOk=hasSummary(feat,SELSTAGE);
-  if(VIEWMODE==="summary" && !summaryOk) VIEWMODE="raw";
-  let body;
-  if(VIEWMODE==="summary"){ body=summaryFor(feat,SELSTAGE); }
-  else{ const doc=path?docCache[path]:null; body=rawHtml(SELSTAGE,doc?doc.content:null);
-    if(path&&!doc) fetchDoc(path).then(()=>{ if(SELSTAGE&&VIEWMODE==="raw") renderViewer(); }); }
-  const tabs = summaryOk
-    ? `<button data-m="summary" class="${VIEWMODE==='summary'?'on':''}">SUMMARY</button>
-       <button data-m="raw" class="${VIEWMODE==='raw'?'on':''}" ${path?"":"disabled"}>RAW</button>`
-    : `<button data-m="raw" class="on">DOCUMENT</button>`;
+  if(!feat){ wrap.innerHTML=`<div class="vbody"><div class="loading">[ SELECT A FEATURE ]</div></div>`; return; }
+  if(SELSTAGE==='implement' && !(feat.stage_files||{}).implement){ DOCSHOWN=null; return renderDiffView(feat,wrap); }
+  const isStoreDoc=!!SELDOC && SELDOC.indexOf("docs/compound/")===0;
+  const docs=isStoreDoc?[SELDOC]:(SELSTAGE?docsForStage(feat,SELSTAGE):(feat.docs||[]));
+  const sumStage=(!isStoreDoc && SELSTAGE && hasSummary(feat,SELSTAGE))?SELSTAGE:null;
+  const showingSummary=!SELDOC && VIEWMODE==="summary" && !!sumStage;
+  let curDoc=SELDOC;
+  if(!showingSummary && !curDoc){ curDoc=(SELSTAGE?(feat.stage_files||{})[SELSTAGE]:null)||docs[0]||null; }
+  DOCSHOWN=showingSummary?null:curDoc;  // the doc on screen — poll() live-refreshes its cache
+  let tabs="";
+  if(sumStage) tabs+=`<button data-sum="${esc(sumStage)}" class="${showingSummary?'on':''}">SUMMARY</button>`;
+  tabs+=docs.map(d=>`<button data-doc="${esc(d)}" class="${(!showingSummary&&d===curDoc)?'on':''}" title="${esc(d)}">${esc(docLabel(d))}</button>`).join("");
+  let body, headtxt;
+  if(showingSummary){ body=summaryFor(feat,sumStage); headtxt=esc((LABELS[sumStage]||sumStage)+" · SUMMARY"); }
+  else if(curDoc){ const dc=docCache[curDoc]; headtxt=esc(curDoc);
+    if(dc){ body=rawHtml(stageForDoc(feat,curDoc),dc.content); }
+    else { body=`<div class="loading">[ LOADING ]</div>`; fetchDoc(curDoc).then(()=>renderViewer()); } }
+  else { body=`<div class="loading">[ NO DOCUMENTS YET ]</div>`; headtxt="—"; }
   wrap.innerHTML=`<div class="vh">
-      <div class="path"><b>${esc(label)}</b> · ${path?esc(path):"NO FILE"}</div>
-      <div class="seg vtabs">${tabs}</div>
-    </div><div class="vbody">${body}</div>`;
-  wrap.querySelectorAll(".vtabs button").forEach(b=>{ if(!b.disabled) b.onclick=()=>{ VIEWMODE=b.dataset.m; renderViewer(); }; });
+      <div class="path">${headtxt}</div>
+      <div class="vctl"><div class="seg vzoom"><button data-dz="-1" title="smaller document text">A−</button><button data-dz="1" title="larger document text">A+</button></div></div>
+    </div>
+    ${(docs.length||sumStage)?`<div class="doctabs">${tabs}</div>`:""}
+    <div class="vbody">${body}</div>`;
+  wrap.querySelectorAll(".vzoom button").forEach(b=>b.onclick=()=>docZoom(parseInt(b.dataset.dz)));
+  wrap.querySelectorAll(".doctabs button[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
+  wrap.querySelectorAll(".doctabs button[data-sum]").forEach(b=>b.onclick=()=>showSummary(b.dataset.sum));
 }
 
 function chainHtml(feat){
+  const OPTIONAL={gapfill:1};
+  const diffN=(STATE.diff||{}).count||0;
   let h='<div class="chain">';
   STATE.stages.forEach((name,i)=>{
-    const st=feat.stages[name], hasDoc=!!(feat.stage_files||{})[name];
-    const cls=stageCls(st)+(name===SELSTAGE?" sel":"");
-    h+=`<button class="stage ${cls}" data-stage="${esc(name)}" ${hasDoc?"":"disabled"}>
+    const st=feat.stages[name];
+    // implement produces CODE, not a doc — its artifact is the git diff, so it's
+    // clickable (and shown as active) whenever the branch has changes.
+    const hasDoc=!!(feat.stage_files||{})[name] || (name==='implement' && diffN>0);
+    let scls=stageCls(st);
+    if(name==='implement' && diffN>0 && st.state!=='done' && st.state!=='current') scls='current';
+    const cls=scls+(name===SELSTAGE?" sel":"")+(OPTIONAL[name]?" optional":"");
+    h+=`<button class="stage ${cls}" data-stage="${esc(name)}" ${hasDoc?"":"disabled"}${OPTIONAL[name]?' title="optional stage — safe to skip"':''}>
         <span class="blk"></span>
         <span class="cap">${esc(LABELS[name]||name)}</span>
       </button>`;
@@ -687,25 +952,25 @@ function renderDetail(){
     </div>
   </div>`;
   if(c.goal) h+=`<p class="goal">${esc(c.goal)}</p>`;
-  h+=`<div class="chainhd"><span class="lbl">PIPELINE</span><span class="lbl lbl-dim">CLICK A STAGE TO READ ITS DOC</span></div>`;
+  h+=`<div class="chainhd"><span class="lbl">PIPELINE</span><span class="lbl chainhint">▸ CLICK ANY STAGE TO OPEN ITS DOCS</span></div>`;
   h+=chainHtml(feat);
   h+=`<div class="viewer" id="viewer"></div>`;
   h+=statsHtml();
   d.innerHTML=h;
   d.querySelectorAll(".stage[data-stage]").forEach(b=>{ if(b.disabled) return;
-    b.onclick=()=>{ SELSTAGE=b.dataset.stage; VIEWMODE=hasSummary(feature(),SELSTAGE)?"summary":"raw";
+    b.onclick=()=>{ SELSTAGE=b.dataset.stage; SELDOC=null; VIEWMODE=hasSummary(feature(),SELSTAGE)?"summary":"raw";
       d.querySelectorAll(".stage").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); renderViewer(); };
   });
+  d.querySelectorAll(".storedoc[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
   renderViewer();
 }
 
 function statsHtml(){
   const cp=STATE.compound||{adr:[],corrections:[],patterns:[]}, tok=STATE.tokens||{};
+  const sdoc=(sub,name)=>`<button class="storedoc" data-doc="docs/compound/${sub}/${esc(name)}" title="${esc(name)}">${esc(name.replace(/\.md$/,''))}</button>`;
+  const sitems=[...cp.adr.map(n=>sdoc('adr',n)),...cp.corrections.map(n=>sdoc('corrections',n)),...cp.patterns.map(n=>sdoc('patterns',n))];
   let store=`<div class="statgroup"><div class="lbl" style="margin-bottom:6px">COMPOUND STORE</div>
-    <div class="statrow"><span class="k">ADRs</span><span class="v">${cp.adr.length}</span></div>
-    <div class="statrow"><span class="k">Corrections</span><span class="v">${cp.corrections.length}</span></div>
-    <div class="statrow"><span class="k">Patterns</span><span class="v">${cp.patterns.length}</span></div>
-    <div class="storelist">${[...cp.adr,...cp.corrections,...cp.patterns].map(esc).join(" · ")||"EMPTY — GROWS FROM YOUR FIRST WRITEBACK"}</div></div>`;
+    <div class="storelist">${sitems.length?sitems.join(""):"EMPTY — GROWS FROM YOUR FIRST WRITEBACK"}</div></div>`;
   let toks=`<div class="statgroup"><div class="lbl" style="margin-bottom:6px">TOKEN SPEND · THIS PROJECT</div>`;
   if(tok.available){
     toks+=`<div class="statrow"><span class="k">Billable</span><span class="v">${human(tok.total.billable)}</span></div>
@@ -732,13 +997,45 @@ document.querySelectorAll("#themeseg button").forEach(b=>b.onclick=()=>setTheme(
   else{ try{ t=localStorage.getItem("skc-theme")||(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"); }catch(e){} }
   setTheme(t); })();
 
+/* ── text size ── */
+function setFont(fs){
+  document.documentElement.style.setProperty("--fs",fs);
+  document.querySelectorAll("#fontseg button").forEach(b=>b.classList.toggle("on",b.dataset.fs===fs));
+  try{ localStorage.setItem("skc-fs",fs); }catch(e){}
+}
+document.querySelectorAll("#fontseg button").forEach(b=>b.onclick=()=>setFont(b.dataset.fs));
+(function(){
+  const q=new URLSearchParams(location.search).get("fs");   // ?fs=1.45 wins (shareable link / screenshots)
+  let fs=q; if(!fs){ try{ fs=localStorage.getItem("skc-fs"); }catch(e){} }
+  if(fs) setFont(fs);
+})();
+
+/* ── doc-pane zoom (independent of the global TEXT size) ── */
+let DOCFS=1;
+function docZoom(d){
+  DOCFS=Math.min(2.5,Math.max(0.7,+(DOCFS+d*0.15).toFixed(2)));
+  document.documentElement.style.setProperty("--docfs",DOCFS);
+  try{ localStorage.setItem("skc-docfs",DOCFS); }catch(e){}
+}
+(function(){ try{ const d=parseFloat(localStorage.getItem("skc-docfs")); if(d){ DOCFS=d; document.documentElement.style.setProperty("--docfs",d); } }catch(e){} })();
+
 /* ── poll ── */
 async function poll(){
   const hb=document.getElementById("hb"), txt=document.getElementById("hbtxt");
   try{
     const r=await fetch("/api/state",{cache:"no-store"}); STATE=await r.json();
+    // Live-refresh the doc currently on screen so an actively-written file
+    // (e.g. gapfill appending to tasks.md) updates in place — no stale cache,
+    // no LOADING flicker. Other docs stay cached until opened.
+    if(DOCSHOWN){ try{ const dr=await fetch("/api/doc?path="+encodeURIComponent(DOCSHOWN),{cache:"no-store"}); const dj=await dr.json(); if(dj&&dj.content!=null) docCache[DOCSHOWN]=dj; }catch(e){} }
+    if(SELSTAGE==='implement'){ try{ const xr=await fetch("/api/diff",{cache:"no-store"}); DIFFTEXT=await xr.json(); }catch(e){} }
     document.getElementById("repo").textContent="— "+((STATE.repo||"PIPELINE").toUpperCase());
-    if(SEL===null && (STATE.features||[]).length) SEL=STATE.features[0].slug;
+    if(SEL===null && (STATE.features||[]).length){
+      SEL=STATE.features[0].slug;
+      if(SELSTAGE===null && SELDOC===null){ const f0=STATE.features[0], sf=f0.stage_files||{};
+        for(let i=STATE.stages.length-1;i>=0;i--){ const n=STATE.stages[i]; const stt=(f0.stages[n]||{}).state;
+          if(sf[n] && (stt==="done"||stt==="current")){ SELSTAGE=n; VIEWMODE=hasSummary(f0,n)?"summary":"raw"; break; } } }
+    }
     renderMaster(); renderDetail();
     hb.classList.remove("stale"); txt.textContent="LIVE · "+((STATE.scanned_at||"").slice(11,19)||"NOW");
   }catch(e){ hb.classList.add("stale"); txt.textContent="DISCONNECTED"; }
@@ -754,6 +1051,7 @@ import argparse
 import datetime
 import webbrowser
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
@@ -803,6 +1101,8 @@ def make_handler(repo_root):
                 self._send(200, json.dumps(scan_state(repo_root, now=now)), "application/json")
             elif parsed.path == "/api/doc":
                 self._serve_doc(urllib.parse.parse_qs(parsed.query).get("path", [""])[0])
+            elif parsed.path == "/api/diff":
+                self._send(200, json.dumps(scan_diff(repo_root, full=True)), "application/json")
             else:
                 self._send(404, "not found", "text/plain")
 
@@ -826,6 +1126,22 @@ def make_handler(repo_root):
     return Handler
 
 
+def _live_dashboard(port, repo_name):
+    """If a compound dashboard for `repo_name` is already serving on `port`,
+    return its URL; else None — so a second launch reuses the first instead of
+    spawning a duplicate on the next port."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=0.4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None  # nothing reachable here
+    if not isinstance(data, dict) or "stages" not in data:
+        return None  # some other server on this port — leave it alone
+    if data.get("repo") and data["repo"] != repo_name:
+        return None  # a dashboard, but for a different repo — caller picks another port
+    return f"http://127.0.0.1:{port}/"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="spec-kit-compound pipeline dashboard")
     ap.add_argument("--port", type=int, default=8787)
@@ -846,13 +1162,21 @@ def main(argv=None):
             repo_root = find_repo_root(os.path.dirname(os.path.abspath(__file__)))
     handler = make_handler(repo_root)
 
+    repo_name = os.path.basename(os.path.abspath(repo_root))
     httpd = None
     for port in range(args.port, args.port + 11):
+        # Already serving THIS repo here? Reuse it — don't spawn a duplicate.
+        existing = _live_dashboard(port, repo_name)
+        if existing:
+            print(f"dashboard already running → {existing}  (reusing — not starting a second)", flush=True)
+            if args.open:
+                webbrowser.open(existing)
+            return 0
         try:
             httpd = HTTPServer(("127.0.0.1", port), handler)
             break
         except OSError:
-            continue
+            continue  # port busy with something else → try the next
     if httpd is None:
         print("error: no free port in range", flush=True)
         return 1

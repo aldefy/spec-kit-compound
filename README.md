@@ -188,7 +188,7 @@ A read-only localhost view of the whole chain — features, stage progress, the 
 ![Pipeline dashboard — dark](docs/img/dashboard-dark.png)
 ![Pipeline dashboard — light](docs/img/dashboard-light.png)
 
-**Start it (scanning the current project):**
+**Launch it first — before `/speckit-compound-load` — and leave it open.** It's read-only and re-scans every 3s, so each pipeline stage fills in live as you run the chain.
 
 In your agent, from the project root:
 
@@ -239,13 +239,19 @@ flowchart LR
 
 **Three user-typed commands total.** Solid edges auto-chain (in-prompt handoff). Dotted edges are SpecKit's own chain. The two `type manually` edges are the only places you intervene; everything else flows.
 
-**Mental shortcut:**
+**Order of operations.** Launch the dashboard **first** and leave it open — read-only, re-scans every 3s, so you watch each stage fill as you run the chain:
+
+```
+/speckit-compound-dashboard      # step 0 — launch once, keep it running
+```
+
+Then run the chain top to bottom:
 
 ```
 load → intent → expectations → [specify, plan, tasks] → gapfill → implement → intentguard → writeback
 ```
 
-Three commands wrap **before** SpecKit, one **mid** (gapfill, between tasks and implement), two **after** (intentguard, writeback). SpecKit's vanilla chain is unchanged.
+Three of our commands wrap **before** SpecKit (load, intent, expectations), one runs **mid** (gapfill, between tasks and implement), two run **after** (intentguard, writeback). SpecKit's vanilla chain is unchanged — only three commands are user-typed; the rest auto-chain (see [How the chain actually dispatches](#how-the-chain-actually-dispatches)).
 
 ### How the chain actually dispatches
 
