@@ -3,9 +3,9 @@
 [![Version](https://img.shields.io/badge/version-v0.6.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
-[![Project page](https://img.shields.io/badge/project_page-planverify-D71921)](https://aldefy.github.io/spec-kit-compound/)
+[![Project page](https://img.shields.io/badge/project_page-live-D71921)](https://aldefy.github.io/spec-kit-compound/)
 
-> 📄 **[Read the project page → aldefy.github.io/spec-kit-compound](https://aldefy.github.io/spec-kit-compound/)** — how planverify works, each step's logic, and two real cross-model runs.
+> 📄 **[Read the full project page → aldefy.github.io/spec-kit-compound](https://aldefy.github.io/spec-kit-compound/)** — the whole picture: ICE scoping, compound engineering memory, the full SDD chain and each step's logic, planverify + intentguard, and two real cross-model runs.
 
 A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engineering memory**, **plan-drift validation** (planverify), and **L3 intent guard validation** to the Spec-Driven Development workflow.
 

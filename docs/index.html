@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>spec-kit-compound · planverify</title>
-<meta name="description" content="planverify — judge the plan before execution. The cheaper, earlier mirror of intentguard, validated cross-model on real repos.">
+<title>spec-kit-compound</title>
+<meta name="description" content="A SpecKit extension: intent-driven scoping (ICE), compound engineering memory, and cross-model plan + diff validation for spec-driven development.">
 <style>
 :root{
   --black:#000;--surface:#111;--border:#222;--border-vis:#333;
@@ -18,10 +18,12 @@ body{margin:0;background:var(--black);color:var(--t);font-family:var(--ui);font-
 a{color:var(--int);text-decoration:underline;text-underline-offset:2px}
 code{font-family:var(--mono);font-size:.88em;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px}
 .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec)}
-header{border-bottom:1px solid var(--border);padding:64px 0 40px;margin-bottom:48px}
+header{border-bottom:1px solid var(--border);padding:64px 0 40px;margin-bottom:24px}
 .tag{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--t-dim)}
-h1{font-family:var(--mono);font-weight:700;font-size:clamp(34px,7vw,64px);letter-spacing:-.02em;line-height:1;margin:18px 0 0;color:var(--t-hi)}
-.sub{font-size:clamp(17px,2.4vw,21px);color:var(--t-sec);margin:20px 0 0;max-width:62ch}
+h1{font-family:var(--mono);font-weight:700;font-size:clamp(32px,6.5vw,58px);letter-spacing:-.02em;line-height:1;margin:18px 0 0;color:var(--t-hi)}
+.sub{font-size:clamp(17px,2.4vw,21px);color:var(--t-sec);margin:20px 0 0;max-width:64ch}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 0}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border-vis);border-radius:5px;padding:5px 10px;color:var(--t-sec)}
 h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec);margin:56px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
 h3{font-family:var(--ui);font-weight:500;font-size:20px;color:var(--t-hi);margin:32px 0 8px}
 p{margin:0 0 16px;max-width:64ch}
@@ -34,104 +36,101 @@ th{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:up
 .v-pass{color:var(--success);border:1px solid var(--success)}
 .v-review{color:var(--warning);border:1px solid var(--warning)}
 .chain{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 24px}
-.chain .s{flex:1;min-width:78px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;text-align:center;padding:9px 4px;border:1px solid var(--border-vis);color:var(--t-sec);border-radius:4px}
-.chain .s.hl{border-color:var(--int);color:var(--int);background:rgba(91,155,246,.08)}
+.chain .s{flex:1;min-width:74px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;text-align:center;padding:9px 4px;border:1px solid var(--border-vis);color:var(--t-sec);border-radius:4px}
+.chain .s.add{border-color:var(--accent);color:var(--accent);background:rgba(215,25,33,.07)}
 .card{border:1px solid var(--border-vis);border-radius:8px;padding:20px 22px;margin:18px 0;background:var(--surface)}
 .card .repo{font-family:var(--mono);font-size:12px;color:var(--int);letter-spacing:.04em}
 blockquote{border-left:3px solid var(--int);margin:20px 0;padding:6px 0 6px 18px;color:var(--t-sec)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 16px}
+@media(max-width:640px){.cols{grid-template-columns:1fr}}
+.box{border:1px solid var(--border-vis);border-radius:8px;padding:16px 18px}
+.box h4{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-hi);margin:0 0 8px}
 .foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim)}
 ul{padding-left:20px;margin:0 0 16px}li{margin:5px 0;max-width:62ch}
 .kbd{font-family:var(--mono);font-size:.85em;color:var(--t-hi)}
+.toc{font-family:var(--mono);font-size:12px;color:var(--t-sec);margin:8px 0 0;line-height:2}
+.toc a{color:var(--t-sec)}.toc a:hover{color:var(--t-hi)}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <div class="tag">SPEC·KIT·COMPOUND</div>
-  <h1>planverify</h1>
-  <p class="sub">Judge the plan <em>before</em> execution. The cheaper, earlier mirror of intentguard — catching scope drift while it is still free to fix, judged by a model with no stake in the plan.</p>
+  <div class="tag">A SPECKIT EXTENSION</div>
+  <h1>spec-kit-compound</h1>
+  <p class="sub">Intent-driven scoping, compound engineering memory, and cross-model validation of both the <em>plan</em> and the <em>diff</em> — the discipline that keeps spec-driven development from drifting into slop.</p>
+  <div class="pills"><span class="pill">ICE scoping</span><span class="pill">compound memory</span><span class="pill">planverify</span><span class="pill">intentguard</span><span class="pill">cross-model</span></div>
+  <p class="toc">
+    <a href="#why">Why</a> · <a href="#ice">ICE scoping</a> · <a href="#memory">Compound memory</a> · <a href="#chain">The chain</a> · <a href="#firewall">The firewall</a> · <a href="#runs">Two real runs</a> · <a href="#gate">Enforcement</a>
+  </p>
 </header>
 
-<h2>The problem</h2>
-<p>LLMs are built to please. As context grows they affirm, drift, and quietly expand scope — a "while I'm in here, let me also…" reflex. Spec-driven development adds checkpoints, but the existing guard (<code>intentguard</code>) only judges the <em>git diff</em> after code is written. By then a drifted plan has already become drifted code: expensive to catch, messy to unwind.</p>
-<p><strong>planverify</strong> moves the checkpoint one step earlier — it judges the proposed <em>plan</em>, before any file is touched.</p>
+<h2 id="why">Why this exists</h2>
+<p>LLMs are built to please. As context grows they affirm, drift, and quietly expand scope — a "while I'm in here, let me also…" reflex that turns a focused change into a sprawling one. Raw prompting has no checkpoints, so there is no moment for a human to intervene before the slop lands.</p>
+<p>Spec-driven development (SDD) — which predates AI — fixes this by breaking work down and validating at each step. <strong>SpecKit</strong> brings SDD to coding agents. <strong>spec-kit-compound</strong> adds the missing discipline on top of SpecKit: lock the boundary before planning, complete the obligation set, and have a model <em>with no stake in the work</em> judge it — before code (planverify) and after (intentguard).</p>
+<blockquote>It's an <em>extension</em>, not a harness. It sits on top of whatever harness SpecKit drives — Claude Code, Codex, Cursor, Gemini CLI — and injects intent / expectations / compound discipline around the standard chain.</blockquote>
 
-<h2>Where it sits in the chain</h2>
-<div class="chain">
-  <div class="s">load</div><div class="s">intent</div><div class="s">expect</div><div class="s">spec</div><div class="s">plan</div><div class="s">tasks</div><div class="s">gapfill</div><div class="s hl">planverify</div><div class="s">implement</div><div class="s">intentguard</div><div class="s">writeback</div>
+<h2 id="ice">ICE — intent-driven scoping</h2>
+<p>Before any planning, an interview captures three things and locks them:</p>
+<div class="cols">
+  <div class="box"><h4>Intent</h4><p style="margin:0">What to build — and explicitly what <em>not</em> to touch. In-scope and out-of-scope are declared up front so drift is measurable against a boundary.</p></div>
+  <div class="box"><h4>Context</h4><p style="margin:0">The why, how, and where — e.g. a front-end change that depends on a back-end contract. Removes ambiguity before design starts.</p></div>
+  <div class="box"><h4>Expectation</h4><p style="margin:0">Positive scenarios and hard boundaries, kept in a <em>separate, builder-hidden file</em> — compartmentation that defends against reward-hacking (the builder can't teach to the test).</p></div>
 </div>
-<p>It runs <strong>after gapfill, before implement</strong> — after gapfill because it must judge the <em>complete</em> obligation set (constraints, failure conditions, out-of-scope regressions, edge cases), not the incomplete initial task list.</p>
 
-<h2>Each step's logic</h2>
+<h2 id="memory">Compound engineering memory</h2>
+<p>A local store (<code>docs/compound/</code>) of <strong>ADRs, corrections, and patterns</strong> — decisions made, mistakes hit, fixes that worked. It persists across features, so learnings carry forward instead of evaporating when the context window does. It's committed to git, so a teammate (and their LLM) reads the same hard-won context. Each feature ends by writing back what it learned — the system gets smarter every cycle.</p>
+
+<h2 id="chain">The chain — each step's logic</h2>
+<div class="chain">
+  <div class="s">load</div><div class="s">intent</div><div class="s">expect</div><div class="s">spec</div><div class="s">plan</div><div class="s">tasks</div><div class="s">gapfill</div><div class="s add">planverify</div><div class="s">implement</div><div class="s add">intentguard</div><div class="s">writeback</div>
+</div>
 <table>
 <thead><tr><th>Step</th><th>What it does</th><th>Why</th></tr></thead>
 <tbody>
 <tr><td>LOAD</td><td>Read committed ADRs / corrections / patterns into context</td><td>Past lessons carry forward; don't repeat mistakes</td></tr>
 <tr><td>INTENT</td><td>Lock goal, in-scope, out-of-scope, constraints, failure conditions</td><td>Define the boundary <em>before</em> planning, so drift is measurable</td></tr>
 <tr><td>EXPECTATIONS</td><td>Positive + edge scenarios in a separate, builder-hidden file</td><td>Compartmentation defends against reward-hacking</td></tr>
-<tr><td>SPEC / PLAN / TASKS</td><td>Normal spec-driven development</td><td>PRD → design → task list</td></tr>
+<tr><td>SPEC / PLAN / TASKS</td><td>Standard SpecKit spec-driven development</td><td>PRD → design → task list</td></tr>
 <tr><td>GAPFILL</td><td>Append missing constraint / failure / OOS / edge tests</td><td>Complete the obligation set the happy-path tasks miss</td></tr>
-<tr><td><strong>PLANVERIFY</strong></td><td>Surface-analyze the plan → seal briefing → independent checker → verdict</td><td>Catch plan drift before any code — cheapest catch</td></tr>
+<tr><td><strong>PLANVERIFY</strong></td><td>Judge the <em>plan</em> via an independent cross-model checker</td><td>Catch plan drift before any code — the cheapest catch</td></tr>
 <tr><td>IMPLEMENT</td><td>Build</td><td>Only an approved plan should reach here</td></tr>
-<tr><td>INTENTGUARD</td><td>Same firewall, judges the git diff</td><td>Confirm the executor actually stayed in scope</td></tr>
-<tr><td>WRITEBACK</td><td>Persist new lessons to the store</td><td>Compounding: next feature starts smarter</td></tr>
+<tr><td><strong>INTENTGUARD</strong></td><td>Judge the <em>git diff</em> via the same firewall</td><td>Confirm the executor actually stayed in scope</td></tr>
+<tr><td>WRITEBACK</td><td>Persist new lessons to the store</td><td>Compounding: the next feature starts smarter</td></tr>
 </tbody>
 </table>
+<p><strong>planverify</strong> and <strong>intentguard</strong> are the two validation gates — same mechanism, different moments. planverify asks <em>"is the proposed plan drifting, before files are edited?"</em>; intentguard asks <em>"did the actual diff drift, after implementation?"</em> Catching it at plan time is far cheaper than unwinding it from a diff.</p>
 
-<h2>How planverify works inside</h2>
-<p><span class="eyebrow">1 · Surface analysis (mechanical)</span></p>
-<p>The orchestrator extracts every file the plan proposes to touch and classifies each against the locked intent: <em>in-scope</em>, <em>out-of-scope</em>, or <em>undeclared</em>. Out-of-scope/undeclared paths become <strong>drift candidates</strong> — recorded as plain facts, not yet judged.</p>
-<p><span class="eyebrow">2 · The firewall</span></p>
-<p>A plan is the planner's own justification. Asking it "is my plan good?" is motivated reasoning. So planverify seals a <strong>briefing</strong> containing <em>only</em> the locked intent, locked expectations, the plan, the tasks, and the surface facts — <strong>never the planner's reasoning</strong> — and hands it to an independent checker.</p>
-<p><span class="eyebrow">3 · The independence ladder</span></p>
+<h2 id="firewall">The firewall — why a different model judges</h2>
+<p>Whoever did the work is the worst judge of whether it stayed in scope — they have motivated reasoning and they remember what they <em>meant</em>. So both gates seal a <strong>briefing</strong> containing <em>only</em> the locked criteria, the artifact under judgment (plan or diff), and mechanical facts — <strong>never the builder's reasoning</strong> — and hand it to an independent checker that climbs an independence ladder:</p>
 <ul>
 <li><strong>Tier 1 — cross-model:</strong> a different-vendor model (Claude → Codex/Gemini). Different weights + fresh context + different priors. Strongest.</li>
 <li><strong>Tier 2 — cross-tier:</strong> a cheaper sibling (Opus → Haiku).</li>
 <li><strong>Tier 3 — same-model, fresh context:</strong> the honest floor.</li>
 </ul>
-<p><span class="eyebrow">4 · Verdict</span></p>
-<p><span class="verdict v-pass">PASS</span> no drift, full coverage &nbsp; <span class="verdict v-review">REPLAN_ALLOWED</span> small justified drift or a coverage gap &nbsp; <span class="verdict v-block">BLOCKED_DRIFT</span> unjustified scope expansion or constraint contradiction</p>
+<p>planverify returns <span class="verdict v-pass">PASS</span> <span class="verdict v-review">REPLAN_ALLOWED</span> <span class="verdict v-block">BLOCKED_DRIFT</span>; intentguard returns PASS / REVIEW / BLOCKED. The verdict records <em>who</em> judged and at what tier — so "the builder and the checker never share a workspace" is literally true, never overstated.</p>
 
-<h2>Two real runs</h2>
+<h2 id="runs">Two real runs (planverify)</h2>
 <p>Validated end-to-end on two open-source Android repos, each with a deliberately drifting plan. Both were judged by <strong>GPT-5 Codex</strong> — a different vendor that never saw the planning. Both returned <span class="verdict v-block">BLOCKED_DRIFT</span>.</p>
 
 <div class="card">
   <div class="repo">aldefy/kaizen-android</div>
   <h3>"mark a task complete from the list"</h3>
-  <p>The repo's <code>setCompleted()</code> already exists, so the feature needs only the <code>tasks/</code> UI. The plan drifted into a schema migration, a new repo method, reminder cleanup, a feature flag, and a social post.</p>
-  <table>
-  <thead><tr><th>Check</th><th>Verdict</th></tr></thead>
-  <tbody>
-  <tr><td>P3a — 6 out-of-scope paths (data/reminders/flags/social)</td><td><span class="verdict v-block">BLOCKED_DRIFT</span></td></tr>
-  <tr><td>P3d — C1 (new repo method), C2 (schema migration)</td><td><span class="verdict v-block">BLOCKED_DRIFT</span></td></tr>
-  <tr><td>P3d — C3 (route through ViewModel)</td><td><span class="verdict v-pass">PASS</span></td></tr>
-  </tbody>
-  </table>
-  <p>The checker distinguished the one in-scope-correct decision (C3) from the drift — it wasn't blanket-rejecting.</p>
+  <p>The repo's <code>setCompleted()</code> already exists, so the feature needs only the <code>tasks/</code> UI. The plan drifted into a schema migration, a new repo method, reminder cleanup, a feature flag, and a social post — <strong>6 out-of-scope paths</strong>. The checker also <span class="verdict v-pass">PASSed</span> C3 (route through the ViewModel), proving it distinguished the one in-scope-correct decision from the drift.</p>
 </div>
 
 <div class="card">
   <div class="repo">aldefy/nowinandroid · Now in Android</div>
   <h3>"reading history screen"</h3>
-  <p>NiA already tracks <code>viewedNewsResources</code>, so History is a new <code>feature/history</code> module reading existing state. The plan drifted into a proto schema bump, a new repo method, a model field, and a bookmarks-screen tweak.</p>
-  <table>
-  <thead><tr><th>Check</th><th>Verdict</th></tr></thead>
-  <tbody>
-  <tr><td>P3a — 4 out-of-scope paths (datastore/data/model/bookmarks)</td><td><span class="verdict v-block">BLOCKED_DRIFT</span></td></tr>
-  <tr><td>P3d — C1, C2, C4</td><td><span class="verdict v-block">BLOCKED_DRIFT</span></td></tr>
-  <tr><td>P3c — E6 large-history eager load</td><td><span class="verdict v-review">REPLAN_ALLOWED</span></td></tr>
-  </tbody>
-  </table>
-  <p>The E6 flag is the punchline: the plan loaded the full viewed list into memory — the <strong>exact eager-load failure from the live demo</strong> (all 311 articles on launch), caught at <em>plan time</em>, before a line of code.</p>
+  <p>NiA already tracks <code>viewedNewsResources</code>, so History is a new <code>feature/history</code> module reading existing state. The plan drifted into <strong>4 out-of-scope paths</strong> — proto schema, a new repo method, a model field, and the bookmarks screen. Bonus: obligation coverage flagged <strong>E6 (large history) as REPLAN_ALLOWED</strong> because the plan loaded the full list into memory — the <em>exact eager-load failure from the live demo</em> (all 311 articles on launch), caught at <strong>plan time</strong>, before a line of code.</p>
 </div>
 
-<blockquote>planverify catches scope drift <em>and</em> coverage gaps in the plan — by a model with no stake in it — at the cheapest possible place to catch them.</blockquote>
+<blockquote>The system surfaces drift — and coverage gaps — by a model with no stake in the work, at the cheapest possible place to catch them. It doesn't auto-fix; it makes the human intervention land <em>early</em>.</blockquote>
 
-<h2>The gate (opt-in, cross-vendor)</h2>
-<p>By default planverify is advisory. Set <span class="kbd">SKC_PLANVERIFY_GATE=block</span> to enforce it. A <strong>PreToolUse hook</strong> — working under both Claude Code and Codex CLI (the converged exit-2 contract) — then blocks the first source-file write when the latest verdict is missing or BLOCKED_DRIFT; doc and spec writes are never blocked. A spec-kit <code>before_implement</code> hook additionally gates <code>/speckit-implement</code>.</p>
+<h2 id="gate">Enforcement (opt-in, cross-vendor)</h2>
+<p>By default the gates are advisory. Set <span class="kbd">SKC_PLANVERIFY_GATE=block</span> to enforce planverify: a <strong>PreToolUse hook</strong> — working under both Claude Code and Codex CLI (the converged exit-2 contract) — blocks the first source-file write when the latest verdict is missing or BLOCKED_DRIFT; doc and spec writes are never blocked. A live <strong>localhost dashboard</strong> visualizes the whole chain — every stage, the planverify drift panel, file diffs, token spend, task progress — read-only, no dependencies.</p>
 
 <div class="foot">
-  READ-ONLY DOC · <a href="https://github.com/aldefy/spec-kit-compound">github.com/aldefy/spec-kit-compound</a> · planverify is the earlier, cheaper mirror of intentguard
+  <a href="https://github.com/aldefy/spec-kit-compound">github.com/aldefy/spec-kit-compound</a> · MIT · built for <a href="https://github.com/github/spec-kit">SpecKit</a>
 </div>
 </div>
 </body>
