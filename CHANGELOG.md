@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-06-29
+
+planverify lands: the loop now catches **planning** drift *before* a line of code is written — the cheaper, earlier mirror of intentguard. Same independent-checker firewall, judging the proposed plan instead of the finished diff.
+
+### Added
+
+- **`/speckit-compound-planverify`.** Runs after `gapfill`, before `implement`. The orchestrator runs **surface analysis** (the plan's proposed file surface vs intent's in/out-of-scope, flagging drift candidates) but does **not** judge — it seals a **briefing** (`docs/intents/{slug}.planverify.briefing.md`) of only the locked intent, locked expectations, the plan, the gapfilled tasks, and the surface facts (*never the planner's reasoning*) and dispatches judgment to an independent checker. Same Tier 1/2/3 independence ladder and `SKC_CHECKER` policy as intentguard. Returns **PASS / REPLAN_ALLOWED / BLOCKED_DRIFT**; records `checked_by` + `independence_tier`. `REPLAN_ALLOWED` reports what to fix but never patches the plan (validator, not fixer).
+- **Drift-request contract.** Planners declare bounded scope expansion in `plan.md` via a `requested_surface:` block (`files` / `reason` / `risk_class` / `bounded_by`). Requested drift is judged against a decision table; *unrequested* drift candidates are judged more strictly. `risk_class` of `auth-security` / `schema` / `migration` raises the bar.
+- **Config-gated, cross-vendor enforcement** (`SKC_PLANVERIFY_GATE` / `planverify_gate:`, default `off`). When `block`: a **`PreToolUse` hook** — working under **both Claude Code and Codex CLI** (the converged exit-2 contract) — blocks the first source-file Write/Edit if the latest verdict is missing or BLOCKED_DRIFT; doc/spec writes are exempt and `COMPOUND_BYPASS=1` skips it. A spec-kit **`before_implement`** hook additionally gates `/speckit-implement` for Claude + spec-kit. The PreToolUse gate + its shared lib install via `/speckit-compound-install-hooks` (idempotent multi-command merge that preserves all other settings).
+
 ## [0.5.0] — 2026-06-27
 
 The intent guard becomes a genuinely **independent** checker, and the dashboard gains a live **implementation diff** — you can watch the code land and then watch a *different model* validate it against the locked intent.

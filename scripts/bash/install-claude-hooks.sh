@@ -47,13 +47,28 @@ if [ ! -f "$HOOK_SRC" ]; then
   exit 1
 fi
 
+# v0.6: planverify PreToolUse gate + its shared lib
+PV_HOOK_SRC="$EXTENSION_DIR/.claude/hooks/planverify-pretooluse.sh"
+PV_LIB_SRC="$EXTENSION_DIR/scripts/bash/planverify-lib.sh"
+
 # ─────────────────────────────────────────────────────────────────
-# Copy hook script into project's .claude/hooks/
+# Copy hook scripts into project's .claude/hooks/
 # ─────────────────────────────────────────────────────────────────
 mkdir -p .claude/hooks
 cp "$HOOK_SRC" .claude/hooks/compound-correction-match.sh
 chmod +x .claude/hooks/compound-correction-match.sh
 echo "✓ Installed .claude/hooks/compound-correction-match.sh"
+
+# planverify gate is optional — only present in v0.6+ extensions
+if [ -f "$PV_HOOK_SRC" ] && [ -f "$PV_LIB_SRC" ]; then
+  cp "$PV_HOOK_SRC" .claude/hooks/planverify-pretooluse.sh
+  cp "$PV_LIB_SRC" .claude/hooks/planverify-lib.sh
+  chmod +x .claude/hooks/planverify-pretooluse.sh
+  echo "✓ Installed .claude/hooks/planverify-pretooluse.sh (+ planverify-lib.sh)"
+  INSTALL_PV=1
+else
+  INSTALL_PV=0
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # Merge hook entry into .claude/settings.json (C6 pragmatic merge)
@@ -67,31 +82,37 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Build the entry we want to install
-NEW_ENTRY=$(jq -n --arg cmd "$COMPOUND_CMD" '{
-  matcher: "Write|Edit",
-  hooks: [{ type: "command", command: $cmd }]
-}')
+# Build the list of compound command paths to (re)install. The planverify
+# gate is included only when its hook was copied above.
+PV_CMD=".claude/hooks/planverify-pretooluse.sh"
+CMDS_JSON=$(jq -n --arg c1 "$COMPOUND_CMD" --arg c2 "$PV_CMD" --argjson pv "$INSTALL_PV" '
+  [$c1] + (if $pv == 1 then [$c2] else [] end)
+')
+
+# Fresh PreToolUse entries for each command (all match Write|Edit).
+NEW_ENTRIES=$(jq -n --argjson cmds "$CMDS_JSON" '
+  $cmds | map({ matcher: "Write|Edit", hooks: [{ type: "command", command: . }] })
+')
 
 if [ ! -f "$SETTINGS" ]; then
   # First install — create from scratch
-  jq -n --argjson entry "$NEW_ENTRY" '{
-    hooks: { PreToolUse: [$entry] }
+  jq -n --argjson entries "$NEW_ENTRIES" '{
+    hooks: { PreToolUse: $entries }
   }' > "$SETTINGS"
-  echo "✓ Created $SETTINGS with compound hook entry"
+  echo "✓ Created $SETTINGS with compound hook entries"
 else
   # Existing file — pragmatic merge:
-  #   1. Find any existing PreToolUse entry whose hooks[0].command equals ours, remove it
-  #   2. Append our fresh entry
-  #   3. Preserve everything else
+  #   1. Drop any existing PreToolUse entry whose command is one of ours
+  #   2. Append our fresh entries
+  #   3. Preserve everything else byte-for-byte
   TMP="${SETTINGS}.tmp.$$"
-  jq --argjson entry "$NEW_ENTRY" --arg cmd "$COMPOUND_CMD" '
+  jq --argjson entries "$NEW_ENTRIES" --argjson cmds "$CMDS_JSON" '
     .hooks //= {} |
     .hooks.PreToolUse = (
       ((.hooks.PreToolUse // []) | map(
-        select((.hooks // []) | map(.command // "") | all(. != $cmd))
+        select((.hooks // []) | map(.command // "") | any(. as $c | $cmds | index($c)) | not)
       ))
-      + [$entry]
+      + $entries
     )
   ' "$SETTINGS" > "$TMP"
 
@@ -103,7 +124,7 @@ else
   fi
 
   mv "$TMP" "$SETTINGS"
-  echo "✓ Merged compound hook entry into $SETTINGS (other entries preserved)"
+  echo "✓ Merged compound hook entries into $SETTINGS (other entries preserved)"
 fi
 
 echo ""
@@ -118,3 +139,13 @@ echo ""
 echo "Bypass mechanisms:"
 echo "  - Per-file:    add a comment '// compound-allow: <correction-slug>' in the file content"
 echo "  - Per-session: export COMPOUND_BYPASS=1"
+
+if [ "$INSTALL_PV" = "1" ]; then
+  echo ""
+  echo "planverify gate (cross-vendor: Claude Code + Codex CLI) is also wired but"
+  echo "OFF by default. To enforce it, block source writes until the plan is verified:"
+  echo "  export SKC_PLANVERIFY_GATE=block        (or set planverify_gate: block"
+  echo "                                           in docs/compound/compound-config.yml)"
+  echo "Then a source-file Write/Edit is blocked when the latest /speckit.compound.planverify"
+  echo "verdict is missing or BLOCKED_DRIFT. Doc/spec writes are never blocked."
+fi

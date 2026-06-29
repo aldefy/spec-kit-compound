@@ -123,6 +123,35 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(feat["stages"]["intentguard"]["verdict"], "BLOCKED")
         self.assertEqual(feat["stages"]["intentguard"]["state"], "blocked")
 
+    def test_planverify_in_stages_between_gapfill_and_implement(self):
+        self.assertIn("planverify", d.STAGES)
+        self.assertIn("planverify", d.STAGE_DESCRIPTIONS)
+        self.assertEqual(d.STAGES.index("planverify"), d.STAGES.index("gapfill") + 1)
+        self.assertEqual(d.STAGES.index("planverify") + 1, d.STAGES.index("implement"))
+
+    def test_planverify_done_and_verdict_when_report_present(self):
+        _write(os.path.join(self.root, "docs/intents/p.intent.md"), "---\nslug: p\n---\n")
+        _write(os.path.join(self.root, "docs/intents/p.planverify.md"),
+               "---\nverdict: PASS\n---\n# plan verify\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["stages"]["planverify"]["state"], "done")
+        self.assertEqual(feat["stages"]["planverify"]["verdict"], "PASS")
+        self.assertEqual(feat["stage_files"]["planverify"], "docs/intents/p.planverify.md")
+
+    def test_planverify_blocked_drift_sets_blocked_state(self):
+        _write(os.path.join(self.root, "docs/intents/r.intent.md"), "---\nslug: r\n---\n")
+        _write(os.path.join(self.root, "docs/intents/r.planverify.md"),
+               "---\nverdict: BLOCKED_DRIFT\n---\n# report\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["stages"]["planverify"]["verdict"], "BLOCKED_DRIFT")
+        self.assertEqual(feat["stages"]["planverify"]["state"], "blocked")
+
+    def test_planverify_pending_when_no_report(self):
+        _write(os.path.join(self.root, "docs/intents/s.intent.md"), "---\nslug: s\n---\n")
+        feat = d.scan_state(self.root)["features"][0]
+        self.assertEqual(feat["stages"]["planverify"]["state"], "pending")
+        self.assertIsNone(feat["stages"]["planverify"].get("verdict"))
+
     def test_orphan_spec_dir(self):
         _write(os.path.join(self.root, "specs/050-stray/spec.md"), "x\n")
         state = d.scan_state(self.root)
@@ -366,6 +395,38 @@ class TestParseIntentguard(unittest.TestCase):
         self.assertEqual(d.parse_intentguard(""), {"verdict": None, "drift": []})
 
 
+class TestParsePlanverify(unittest.TestCase):
+    REPORT = (
+        "---\nverdict: BLOCKED_DRIFT\n---\n"
+        "# Plan Verify Report\n\n"
+        "## P3a — Surface drift\n"
+        "- `src/auth/mw.ts`: BLOCKED_DRIFT\n"
+        "- `src/tasks/list.kt`: PASS\n\n"
+        "## P3b — Drift requests\n"
+        "- `sibling.kt` (risk: behavioral): REPLAN_ALLOWED -- bounded by F1\n\n"
+        "## P3d — Constraint pre-check\n"
+        "- **C2**: BLOCKED_DRIFT -- adds a schema migration\n"
+    )
+
+    def test_verdict_and_drift(self):
+        r = d.parse_planverify(self.REPORT)
+        self.assertEqual(r["verdict"], "BLOCKED_DRIFT")
+        rows = [(x["level"], x["kind"], x["severity"]) for x in r["drift"]]
+        self.assertIn(("P3a", "surface", "blocked"), rows)
+        self.assertIn(("P3b", "drift-request", "review"), rows)
+        self.assertIn(("P3d", "constraint", "blocked"), rows)
+        self.assertEqual(len(r["drift"]), 3)  # PASS line excluded
+
+    def test_pass_report_has_no_drift(self):
+        report = "---\nverdict: PASS\n---\n## P3a — Surface drift\n- `x`: PASS\n"
+        r = d.parse_planverify(report)
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertEqual(r["drift"], [])
+
+    def test_empty(self):
+        self.assertEqual(d.parse_planverify(""), {"verdict": None, "drift": []})
+
+
 class TestPageHtml(unittest.TestCase):
     def test_is_self_contained_document(self):
         html = d.PAGE_HTML
@@ -383,6 +444,15 @@ class TestPageHtml(unittest.TestCase):
             self.assertIn(anchor, html)
         self.assertNotIn("mermaid", html.lower())  # no CDN diagram lib
         self.assertNotIn("<script src=", html)
+
+    def test_planverify_label_and_markdown_and_scroll_fix(self):
+        html = d.PAGE_HTML
+        # planverify is a labeled stage in the client
+        self.assertIn("planverify", html)
+        # markdown rendering for doc bodies (self-contained, no CDN)
+        self.assertIn("function mdHtml", html)
+        # scroll position preserved across the 3s poll re-render
+        self.assertIn("scrollTop", html)
         self.assertNotIn('rel="stylesheet"', html)
 
 

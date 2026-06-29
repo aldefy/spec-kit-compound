@@ -120,6 +120,7 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 | `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
 | `/speckit-compound-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
 | `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
+| `/speckit-compound-planverify` | After `gapfill`, before `implement` | L3 **plan** validation: judges the proposed plan + tasks vs intent scope *before* any code. Returns PASS / REPLAN_ALLOWED / BLOCKED_DRIFT. Independent checker; gate opt-in via `SKC_PLANVERIFY_GATE=block` |
 | `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
 | `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
 
@@ -131,6 +132,86 @@ Run once per project; never typed by hand during a feature.
 |---|---|---|
 | `/speckit-compound-install-hooks` | One-time per project | Installs the v0.3+ Claude Code `PreToolUse` hook that blocks Write/Edit on documented past mistakes (opt-in, see [Two-layer enforcement](#two-layer-enforcement)) |
 | `/speckit-compound-require-intent` | Auto-fires `before_specify` | Gate hook (v0.2.2+) — refuses to let `/speckit-specify` proceed if no intent doc exists. Shell-script wrapper; dispatches reliably under SpecKit's hook executor. |
+
+---
+
+## planverify vs intentguard
+
+Both use the same independent-checker firewall (sealed briefing → cross-model →
+cross-tier → same-model fresh context), but they guard different moments:
+
+| | planverify | intentguard |
+|---|---|---|
+| **When** | after gapfill, before implement | after implement |
+| **Judges** | the proposed plan + tasks | the actual git diff |
+| **Catches** | planning drift (before any code) | implementation drift (after code) |
+| **Verdicts** | PASS / REPLAN_ALLOWED / BLOCKED_DRIFT | PASS / REVIEW NEEDED / BLOCKED |
+
+planverify is the cheaper, earlier gate — catching drift before code is written
+is far cheaper than unwinding it from a diff. A `REPLAN_ALLOWED` verdict reports
+what to fix but never patches the plan for you (validator, not fixer); re-run
+`/speckit-plan` or edit, then re-run planverify.
+
+**The gate is opt-in and cross-vendor.** By default planverify is advisory
+(report only). Set `SKC_PLANVERIFY_GATE=block` (env) or `planverify_gate: block`
+(in `docs/compound/compound-config.yml`) to enforce it. Enforcement is
+belt-and-suspenders:
+
+- A **`PreToolUse` hook** (works under **both Claude Code and Codex CLI** — the
+  converged exit-2 contract) blocks the first source-file Write/Edit when the
+  latest verdict is missing or BLOCKED_DRIFT. Installed via
+  `/speckit-compound-install-hooks`. Doc and spec writes are never blocked, and
+  `COMPOUND_BYPASS=1` skips it for a session.
+- A **spec-kit `before_implement` hook** additionally gates `/speckit-implement`
+  for Claude + spec-kit users.
+
+---
+
+## planverify in action — two real runs
+
+planverify was validated end-to-end on two real open-source Android repos, each
+with a deliberately drifting plan. In both, the orchestrator ran surface analysis,
+sealed a briefing (no planner context), and dispatched judgment to an **independent
+cross-model checker (GPT-5 Codex)** — a different vendor that never saw the planning.
+Both returned **BLOCKED_DRIFT**, citing the exact out-of-scope expansions.
+
+### Run 1 — `aldefy/kaizen-android` · "mark a task complete from the list"
+
+The repo's `TaskRepository.setCompleted(id, completed)` already exists, so the
+feature needs only the `tasks/` UI. The plan drifted into five out-of-scope areas:
+
+| Drift | Files | Why blocked |
+|---|---|---|
+| Schema migration | `data/TaskEntity.kt`, `data/KaizenDatabase.kt`, `data/RoomTaskRepository.kt` | OOS `data/**` + violates C2 (no schema change) / F2 |
+| New repo method | `data/RoomTaskRepository.kt`, `domain/TaskRepository.kt` | violates C1 (reuse `setCompleted`) |
+| Reminder cleanup | `reminders/AlarmReminderScheduler.kt` | OOS `reminders/**` |
+| Feature flag | `flags/FeatureFlags.kt` | OOS `flags/**` |
+| Social post | `feature/social/FriendsRepository.kt` | OOS `social/**` |
+
+Checker verdict: **BLOCKED_DRIFT** — 6 out-of-scope paths + C1 + C2. C3 (route through ViewModel) correctly **PASSed** — the checker distinguished the one in-scope-correct decision from the drift.
+
+### Run 2 — `aldefy/nowinandroid` (Now in Android) · "reading history screen"
+
+NiA already tracks `viewedNewsResources` in `UserData`, so History is a new
+`feature/history` module reading existing state. The plan drifted into the data
+layer and a sibling feature:
+
+| Drift | Area | Why blocked |
+|---|---|---|
+| Proto schema bump | `core/datastore/**` | OOS + C2 / F2 |
+| New repo method | `core/data/**` | OOS + C1 |
+| Model field | `core/model/**` | OOS |
+| Bookmarks badge | `feature/bookmarks/**` | OOS |
+
+Checker verdict: **BLOCKED_DRIFT**. Bonus — P3c obligation coverage flagged **E6
+(large history) as REPLAN_ALLOWED** because the plan loaded the full list into
+memory: the *exact eager-load failure* from the live demo (all 311 articles on
+launch), caught at **plan time** before a line of code was written.
+
+> The takeaway: planverify catches scope drift *and* coverage gaps in the plan,
+> by a model with no stake in the plan — the cheapest possible place to catch them.
+
+A full walkthrough with every step's logic is on the **[project page](https://aldefy.github.io/spec-kit-compound/)**.
 
 ---
 
