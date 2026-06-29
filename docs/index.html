@@ -31,9 +31,9 @@ a:hover{border-bottom-color:var(--int)}
 .lbl-dim{color:var(--t-dim)}
 
 /* ── top bar ── */
-.bar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;
-  height:54px;border-bottom:1px solid var(--border);background:var(--black);transition:background .4s ease}
-.bar .wm{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--t-hi)}
+.bar{position:sticky;top:0;z-index:10;width:100%;border-bottom:1px solid var(--border);background:var(--black);transition:background .4s ease}
+.bar .row{max-width:var(--maxw);margin:0 auto;padding:0 28px;height:54px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.bar .wm{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--t-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .wm b{color:var(--t-dim);font-weight:400}
 .seg{display:flex;border:1px solid var(--border-vis);border-radius:5px;overflow:hidden}
 .seg button{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;
@@ -43,11 +43,11 @@ a:hover{border-bottom-color:var(--int)}
 /* ── hero: the verdict stamp ── */
 .hero{display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:end;
   padding:84px 0 56px;border-bottom:1px solid var(--border)}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--t-dim);margin-bottom:22px}
-.stamp{font-family:var(--dot);font-weight:900;font-size:clamp(46px,9.2vw,104px);line-height:.82;letter-spacing:.02em;
-  color:var(--accent);text-transform:uppercase;margin:0}
-.stamp .by{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:.1em;color:var(--t-sec);
-  text-transform:uppercase;margin-top:20px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--t-dim);margin-bottom:22px;overflow-wrap:anywhere}
+.stamp{font-family:var(--dot);font-weight:900;font-size:clamp(40px,9vw,104px);line-height:.82;letter-spacing:.02em;
+  color:var(--accent);text-transform:uppercase;margin:0;overflow-wrap:anywhere}
+.stamp .by{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:.06em;color:var(--t-sec);
+  text-transform:uppercase;margin-top:24px;line-height:1.5;overflow-wrap:anywhere}
 .herothesis{padding-bottom:6px}
 .herothesis h1{font-family:var(--ui);font-weight:500;font-size:clamp(20px,2.6vw,26px);line-height:1.2;color:var(--t-hi);margin:0 0 14px;letter-spacing:-.01em}
 .herothesis p{font-size:15px;color:var(--t-sec);margin:0;max-width:38ch}
@@ -139,18 +139,24 @@ code{font-family:var(--mono);font-size:.86em;color:var(--t);background:var(--sur
 footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 
 @media(max-width:760px){
-  .hero{grid-template-columns:1fr;gap:30px;padding:56px 0 40px}
+  .wrap{padding:0 20px}
+  .bar .row{padding:0 20px}
+  .hero{grid-template-columns:1fr;gap:30px;padding:48px 0 36px}
+  section{padding:48px 0}
   .triad{grid-template-columns:1fr} .runs{grid-template-columns:1fr}
   .fw{grid-template-columns:1fr;gap:14px} .fw .wall{writing-mode:horizontal-tb;border:0;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:8px;justify-content:center}
+  .sechd{flex-wrap:wrap;gap:8px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto}}
 :focus-visible{outline:2px solid var(--int);outline-offset:2px}
 </style>
 </head>
 <body>
-<div class="bar wrap" style="max-width:none;padding-left:28px;padding-right:28px">
-  <span class="wm">SPEC·KIT·COMPOUND <b>/ EXTENSION</b></span>
-  <div class="seg" id="themeseg"><button data-th="dark" class="on">DARK</button><button data-th="light">LIGHT</button></div>
+<div class="bar">
+  <div class="row">
+    <span class="wm">SPEC·KIT·COMPOUND <b>/ EXTENSION</b></span>
+    <div class="seg" id="themeseg"><button data-th="dark" class="on">DARK</button><button data-th="light">LIGHT</button></div>
+  </div>
 </div>
 
 <div class="wrap">
