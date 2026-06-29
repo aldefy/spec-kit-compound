@@ -1,0 +1,2 @@
+- [ ] T1: call onSaved() in EditExpenseScreen after successful save (covers F1, E1)
+- [ ] T2: on save error keep list, show toast (covers E2)
