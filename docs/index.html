@@ -22,7 +22,7 @@
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--black);color:var(--t);font-family:var(--ui);font-weight:300;line-height:1.6;
+body{margin:0;background:var(--black);color:var(--t);font-family:var(--ui);font-weight:400;line-height:1.6;
   -webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .4s ease,color .4s ease}
 .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
 a{color:var(--int);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
@@ -44,13 +44,13 @@ a:hover{border-bottom-color:var(--int)}
 .hero{display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:end;
   padding:84px 0 56px;border-bottom:1px solid var(--border)}
 .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--t-dim);margin-bottom:22px;overflow-wrap:anywhere}
-.stamp{font-family:var(--dot);font-weight:900;font-size:clamp(40px,9vw,104px);line-height:.82;letter-spacing:.02em;
+.stamp{font-family:var(--dot);font-weight:900;font-size:clamp(34px,6.2vw,72px);line-height:.92;letter-spacing:.01em;
   color:var(--accent);text-transform:uppercase;margin:0;overflow-wrap:anywhere}
 .stamp .by{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:.06em;color:var(--t-sec);
   text-transform:uppercase;margin-top:24px;line-height:1.5;overflow-wrap:anywhere}
 .herothesis{padding-bottom:6px}
-.herothesis h1{font-family:var(--ui);font-weight:500;font-size:clamp(20px,2.6vw,26px);line-height:1.2;color:var(--t-hi);margin:0 0 14px;letter-spacing:-.01em}
-.herothesis p{font-size:15px;color:var(--t-sec);margin:0;max-width:38ch}
+.herothesis h1{font-family:var(--ui);font-weight:500;font-size:clamp(22px,2.8vw,30px);line-height:1.22;color:var(--t-hi);margin:0 0 14px;letter-spacing:-.01em}
+.herothesis p{font-size:16px;color:var(--t);margin:0;max-width:40ch;line-height:1.55}
 .herothesis .cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
 .btn{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:9px 16px;border-radius:5px;
   border:1px solid var(--border-vis);color:var(--t);cursor:pointer;transition:.2s}
@@ -62,7 +62,7 @@ section{padding:64px 0;border-bottom:1px solid var(--border)}
 .sechd{display:flex;align-items:baseline;gap:16px;margin-bottom:30px}
 .sechd .n{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
 .sechd h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec);margin:0;font-weight:400}
-.lead{font-size:17px;color:var(--t);max-width:64ch;margin:0 0 8px;font-weight:300}
+.lead{font-size:19px;line-height:1.55;color:var(--t);max-width:62ch;margin:0 0 8px;font-weight:400}
 .lead em{color:var(--t-hi);font-style:normal}
 
 .strip{display:flex;gap:0;margin:8px 0 4px;overflow-x:auto;padding-bottom:6px}
@@ -72,14 +72,14 @@ section{padding:64px 0;border-bottom:1px solid var(--border)}
 .node.gate .wire{background:var(--accent)}
 .node .dot{width:9px;height:9px;border-radius:50%;background:var(--t-dim);margin:-19px auto 14px;position:relative}
 .node.gate .dot{background:var(--accent);box-shadow:0 0 0 4px var(--accent-subtle,rgba(215,25,33,.16))}
-.node .cap{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--t-sec);display:block;line-height:1.3}
+.node .cap{font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--t);display:block;line-height:1.3}
 .node.gate .cap{color:var(--accent)}
-.node .idx{font-family:var(--mono);font-size:9px;color:var(--t-dim);display:block;margin-top:4px}
+.node .idx{font-family:var(--mono);font-size:10px;color:var(--t-sec);display:block;margin-top:4px}
 .gatekey{display:flex;gap:8px;align-items:center;margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--t-sec);letter-spacing:.04em}
 .gatekey .d{width:8px;height:8px;border-radius:50%;background:var(--accent)}
 
 /* steps table */
-table{border-collapse:collapse;width:100%;margin:6px 0;font-size:14px}
+table{border-collapse:collapse;width:100%;margin:6px 0;font-size:15px}
 .scroll{overflow-x:auto}
 th,td{border-bottom:1px solid var(--border);padding:11px 14px;text-align:left;vertical-align:top}
 th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim);font-weight:400;white-space:nowrap}
@@ -118,13 +118,13 @@ tr.gate td:first-child{color:var(--accent)}
 .run{border:1px solid var(--border-vis);border-radius:8px;padding:22px 22px 18px;background:var(--surface)}
 .run .repo{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--int)}
 .run h3{font-family:var(--ui);font-weight:500;font-size:18px;color:var(--t-hi);margin:8px 0 4px}
-.run .desc{font-size:13.5px;color:var(--t-sec);margin:0 0 18px}
+.run .desc{font-size:15px;color:var(--t);margin:0 0 18px}
 .gauge{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
 .gauge .num{font-family:var(--dot);font-weight:700;font-size:52px;line-height:.85;color:var(--accent)}
 .gauge .gl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-sec);max-width:14ch}
 .bars{display:flex;gap:3px;margin:4px 0 16px}
 .bars i{flex:1;height:8px;background:var(--accent)} .bars i.ok{background:var(--success)} .bars i.warn{background:var(--warning)}
-.run ul{margin:0;padding-left:18px} .run li{font-size:13px;color:var(--t);margin:4px 0}
+.run ul{margin:0;padding-left:18px} .run li{font-size:14.5px;color:var(--t);margin:5px 0}
 .run .vstamp{font-family:var(--dot);font-weight:700;font-size:15px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
 
 .pull{font-family:var(--ui);font-weight:300;font-size:clamp(19px,2.6vw,25px);line-height:1.35;color:var(--t-hi);
@@ -161,17 +161,17 @@ footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing
 
 <div class="wrap">
 
-<!-- HERO: the verdict stamp — judgment is the product -->
+<!-- HERO: the method stack — the discipline is the product -->
 <header class="hero">
   <div>
-    <div class="eyebrow">// verdict · plan judged before a line of code</div>
-    <p class="stamp">BLOCKED<br>DRIFT
-      <span class="by">↳ returned by GPT-5 Codex — a checker that never saw the plan being written</span>
+    <div class="eyebrow">// the discipline that keeps AI coding agents in scope</div>
+    <p class="stamp">SDD<br>+ ICE<br>+ COMPOUND
+      <span class="by">↳ spec-driven development · intent / context / expectation · compounding memory</span>
     </p>
   </div>
   <div class="herothesis">
-    <h1>spec-kit-compound makes a model with no stake in the work judge it — before code, and after.</h1>
-    <p>A SpecKit extension: intent-driven scoping, compound memory, and cross-model validation of the plan and the diff.</p>
+    <h1>Lock the boundary, complete the obligation set, and let a model with no stake judge the work.</h1>
+    <p>A SpecKit extension that adds intent-driven scoping (ICE), compound engineering memory, and cross-model validation of both the plan and the diff.</p>
     <div class="cta">
       <a class="btn pri" href="https://github.com/aldefy/spec-kit-compound">GitHub ↗</a>
       <a class="btn" href="#runs">See the evidence ↓</a>
@@ -183,7 +183,7 @@ footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing
 <section id="why">
   <div class="sechd"><span class="n">00</span><h2>Why this exists</h2></div>
   <p class="lead">LLMs are built to please. As context grows they affirm, drift, and quietly expand scope — a <em>"while I'm in here, let me also…"</em> reflex that turns a focused change into a sprawling one. Raw prompting has no checkpoints, so nothing stops the slop before it lands.</p>
-  <p class="lead" style="margin-top:16px;color:var(--t-sec)">Spec-driven development adds checkpoints; SpecKit brings it to coding agents. spec-kit-compound adds the missing discipline: <em>lock the boundary before planning, complete the obligation set, and hand judgment to a different model</em> — once for the plan (planverify), once for the diff (intentguard). It's an extension, not a harness — it rides on Claude Code, Codex, Cursor, or Gemini CLI.</p>
+  <p class="lead" style="margin-top:16px">Spec-driven development adds checkpoints; SpecKit brings it to coding agents. spec-kit-compound adds the missing discipline: <em>lock the boundary before planning, complete the obligation set, and hand judgment to a different model</em> — once for the plan (planverify), once for the diff (intentguard). It's an extension, not a harness — it rides on Claude Code, Codex, Cursor, or Gemini CLI.</p>
 </section>
 
 <!-- ICE -->
