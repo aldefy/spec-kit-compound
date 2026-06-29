@@ -1,137 +1,314 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>spec-kit-compound</title>
-<meta name="description" content="A SpecKit extension: intent-driven scoping (ICE), compound engineering memory, and cross-model plan + diff validation for spec-driven development.">
+<meta name="description" content="A SpecKit extension: intent-driven scoping, compound engineering memory, and cross-model validation of the plan and the diff. An instrument panel for keeping AI coding agents in scope.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --black:#000;--surface:#111;--border:#222;--border-vis:#333;
+  --black:#000;--surface:#0C0C0C;--raised:#151515;--border:#1E1E1E;--border-vis:#333;
   --t-dim:#666;--t-sec:#999;--t:#E8E8E8;--t-hi:#fff;
   --accent:#D71921;--success:#4A9E5C;--warning:#D4A843;--int:#5B9BF6;
-  --ui:'Space Grotesk',system-ui,sans-serif;--mono:'Space Mono',ui-monospace,monospace;
+  --ui:'Space Grotesk',system-ui,sans-serif;--mono:'Space Mono',ui-monospace,monospace;--dot:'Doto',var(--mono);
+  --maxw:980px;
+}
+:root[data-theme="light"]{
+  --black:#EFEBE2;--surface:#fff;--raised:#F0EDE6;--border:#DCD6C9;--border-vis:#BCB4A2;
+  --t-dim:#9A9485;--t-sec:#6B6457;--t:#2A2620;--t-hi:#100D08;--int:#1F6FD6;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--black);color:var(--t);font-family:var(--ui);font-weight:300;line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:860px;margin:0 auto;padding:0 24px 120px}
-a{color:var(--int);text-decoration:underline;text-underline-offset:2px}
-code{font-family:var(--mono);font-size:.88em;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px}
-.lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec)}
-header{border-bottom:1px solid var(--border);padding:64px 0 40px;margin-bottom:24px}
-.tag{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--t-dim)}
-h1{font-family:var(--mono);font-weight:700;font-size:clamp(32px,6.5vw,58px);letter-spacing:-.02em;line-height:1;margin:18px 0 0;color:var(--t-hi)}
-.sub{font-size:clamp(17px,2.4vw,21px);color:var(--t-sec);margin:20px 0 0;max-width:64ch}
-.pills{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 0}
-.pill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border-vis);border-radius:5px;padding:5px 10px;color:var(--t-sec)}
-h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec);margin:56px 0 16px;padding-top:24px;border-top:1px solid var(--border)}
-h3{font-family:var(--ui);font-weight:500;font-size:20px;color:var(--t-hi);margin:32px 0 8px}
-p{margin:0 0 16px;max-width:64ch}
-.eyebrow{color:var(--int);font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
-table{border-collapse:collapse;width:100%;margin:8px 0 20px;font-size:14px;display:block;overflow-x:auto}
-th,td{border:1px solid var(--border-vis);padding:8px 12px;text-align:left;vertical-align:top}
-th{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--t-sec);background:var(--surface);white-space:nowrap}
-.verdict{display:inline-block;font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.06em;padding:4px 10px;border-radius:5px}
-.v-block{color:var(--accent);border:1px solid var(--accent)}
-.v-pass{color:var(--success);border:1px solid var(--success)}
-.v-review{color:var(--warning);border:1px solid var(--warning)}
-.chain{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 24px}
-.chain .s{flex:1;min-width:74px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;text-align:center;padding:9px 4px;border:1px solid var(--border-vis);color:var(--t-sec);border-radius:4px}
-.chain .s.add{border-color:var(--accent);color:var(--accent);background:rgba(215,25,33,.07)}
-.card{border:1px solid var(--border-vis);border-radius:8px;padding:20px 22px;margin:18px 0;background:var(--surface)}
-.card .repo{font-family:var(--mono);font-size:12px;color:var(--int);letter-spacing:.04em}
-blockquote{border-left:3px solid var(--int);margin:20px 0;padding:6px 0 6px 18px;color:var(--t-sec)}
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 16px}
-@media(max-width:640px){.cols{grid-template-columns:1fr}}
-.box{border:1px solid var(--border-vis);border-radius:8px;padding:16px 18px}
-.box h4{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-hi);margin:0 0 8px}
-.foot{margin-top:64px;padding-top:24px;border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim)}
-ul{padding-left:20px;margin:0 0 16px}li{margin:5px 0;max-width:62ch}
-.kbd{font-family:var(--mono);font-size:.85em;color:var(--t-hi)}
-.toc{font-family:var(--mono);font-size:12px;color:var(--t-sec);margin:8px 0 0;line-height:2}
-.toc a{color:var(--t-sec)}.toc a:hover{color:var(--t-hi)}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--black);color:var(--t);font-family:var(--ui);font-weight:300;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .4s ease,color .4s ease}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+a{color:var(--int);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
+a:hover{border-bottom-color:var(--int)}
+.lbl{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--t-sec)}
+.lbl-dim{color:var(--t-dim)}
+
+/* ── top bar ── */
+.bar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;
+  height:54px;border-bottom:1px solid var(--border);background:var(--black);transition:background .4s ease}
+.bar .wm{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--t-hi)}
+.bar .wm b{color:var(--t-dim);font-weight:400}
+.seg{display:flex;border:1px solid var(--border-vis);border-radius:5px;overflow:hidden}
+.seg button{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;
+  color:var(--t-sec);border:0;padding:6px 12px;cursor:pointer;transition:.2s}
+.seg button.on{background:var(--t-hi);color:var(--black)}
+
+/* ── hero: the verdict stamp ── */
+.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:end;
+  padding:84px 0 56px;border-bottom:1px solid var(--border)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--t-dim);margin-bottom:22px}
+.stamp{font-family:var(--dot);font-weight:900;font-size:clamp(46px,9.2vw,104px);line-height:.82;letter-spacing:.02em;
+  color:var(--accent);text-transform:uppercase;margin:0}
+.stamp .by{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:.1em;color:var(--t-sec);
+  text-transform:uppercase;margin-top:20px}
+.herothesis{padding-bottom:6px}
+.herothesis h1{font-family:var(--ui);font-weight:500;font-size:clamp(20px,2.6vw,26px);line-height:1.2;color:var(--t-hi);margin:0 0 14px;letter-spacing:-.01em}
+.herothesis p{font-size:15px;color:var(--t-sec);margin:0;max-width:38ch}
+.herothesis .cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:9px 16px;border-radius:5px;
+  border:1px solid var(--border-vis);color:var(--t);cursor:pointer;transition:.2s}
+.btn:hover{border-color:var(--t-hi);color:var(--t-hi)}
+.btn.pri{background:var(--t-hi);color:var(--black);border-color:var(--t-hi)}
+
+/* ── the chain: instrument strip (the structural spine) ── */
+section{padding:64px 0;border-bottom:1px solid var(--border)}
+.sechd{display:flex;align-items:baseline;gap:16px;margin-bottom:30px}
+.sechd .n{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
+.sechd h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--t-sec);margin:0;font-weight:400}
+.lead{font-size:17px;color:var(--t);max-width:64ch;margin:0 0 8px;font-weight:300}
+.lead em{color:var(--t-hi);font-style:normal}
+
+.strip{display:flex;gap:0;margin:8px 0 4px;overflow-x:auto;padding-bottom:6px}
+.node{flex:1;min-width:84px;text-align:center;position:relative;padding:0 2px}
+.node .wire{height:2px;background:var(--border-vis);margin:0 0 14px}
+.node:first-child .wire{margin-left:50%} .node:last-child .wire{margin-right:50%}
+.node.gate .wire{background:var(--accent)}
+.node .dot{width:9px;height:9px;border-radius:50%;background:var(--t-dim);margin:-19px auto 14px;position:relative}
+.node.gate .dot{background:var(--accent);box-shadow:0 0 0 4px var(--accent-subtle,rgba(215,25,33,.16))}
+.node .cap{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--t-sec);display:block;line-height:1.3}
+.node.gate .cap{color:var(--accent)}
+.node .idx{font-family:var(--mono);font-size:9px;color:var(--t-dim);display:block;margin-top:4px}
+.gatekey{display:flex;gap:8px;align-items:center;margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--t-sec);letter-spacing:.04em}
+.gatekey .d{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+/* steps table */
+table{border-collapse:collapse;width:100%;margin:6px 0;font-size:14px}
+.scroll{overflow-x:auto}
+th,td{border-bottom:1px solid var(--border);padding:11px 14px;text-align:left;vertical-align:top}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim);font-weight:400;white-space:nowrap}
+td:first-child{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--t-hi);white-space:nowrap}
+td.why{color:var(--t-sec)}
+tr.gate td:first-child{color:var(--accent)}
+
+/* ICE triad */
+.triad{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:6px}
+.triad .cell{background:var(--black);padding:24px 22px}
+.triad .k{font-family:var(--dot);font-weight:700;font-size:34px;color:var(--t-hi);line-height:1;margin-bottom:14px}
+.triad .t{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-sec);margin-bottom:10px}
+.triad p{font-size:14px;color:var(--t);margin:0}
+
+/* firewall diagram */
+.fw{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;margin:8px 0 6px;
+  border:1px solid var(--border-vis);border-radius:8px;padding:26px 24px;background:var(--surface)}
+.fw .side{text-align:center}
+.fw .side .role{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--t-sec);margin-bottom:8px}
+.fw .side .who{font-family:var(--ui);font-weight:500;font-size:17px;color:var(--t-hi)}
+.fw .side .note{font-size:12px;color:var(--t-dim);margin-top:6px}
+.fw .wall{writing-mode:vertical-rl;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);padding:8px 4px;border-left:2px solid var(--accent);border-right:2px solid var(--accent);align-self:stretch;
+  display:flex;align-items:center}
+.ladder{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.tier{font-family:var(--mono);font-size:11px;letter-spacing:.04em;border:1px solid var(--border-vis);border-radius:4px;padding:6px 12px;color:var(--t-sec)}
+.tier b{color:var(--t-hi);font-weight:400}
+
+/* verdict legend */
+.verdicts{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.vchip{font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.06em;padding:6px 12px;border-radius:5px}
+.vp{color:var(--success);border:1px solid var(--success)} .vr{color:var(--warning);border:1px solid var(--warning)} .vb{color:var(--accent);border:1px solid var(--accent)}
+
+/* evidence: the two runs as instrument readouts */
+.runs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+.run{border:1px solid var(--border-vis);border-radius:8px;padding:22px 22px 18px;background:var(--surface)}
+.run .repo{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--int)}
+.run h3{font-family:var(--ui);font-weight:500;font-size:18px;color:var(--t-hi);margin:8px 0 4px}
+.run .desc{font-size:13.5px;color:var(--t-sec);margin:0 0 18px}
+.gauge{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.gauge .num{font-family:var(--dot);font-weight:700;font-size:52px;line-height:.85;color:var(--accent)}
+.gauge .gl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-sec);max-width:14ch}
+.bars{display:flex;gap:3px;margin:4px 0 16px}
+.bars i{flex:1;height:8px;background:var(--accent)} .bars i.ok{background:var(--success)} .bars i.warn{background:var(--warning)}
+.run ul{margin:0;padding-left:18px} .run li{font-size:13px;color:var(--t);margin:4px 0}
+.run .vstamp{font-family:var(--dot);font-weight:700;font-size:15px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+
+.pull{font-family:var(--ui);font-weight:300;font-size:clamp(19px,2.6vw,25px);line-height:1.35;color:var(--t-hi);
+  max-width:30ch;margin:8px 0;border-left:2px solid var(--accent);padding-left:22px}
+.pull em{font-style:normal;color:var(--accent)}
+
+ul.plain{padding-left:18px;margin:6px 0} ul.plain li{margin:6px 0;color:var(--t);font-size:15px}
+ul.plain li b{color:var(--t-hi);font-weight:500}
+.kbd{font-family:var(--mono);font-size:.86em;color:var(--t-hi);background:var(--surface);border:1px solid var(--border);padding:1px 6px;border-radius:3px}
+code{font-family:var(--mono);font-size:.86em;color:var(--t);background:var(--surface);border:1px solid var(--border);padding:1px 5px;border-radius:3px}
+
+footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t-dim);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+@media(max-width:760px){
+  .hero{grid-template-columns:1fr;gap:30px;padding:56px 0 40px}
+  .triad{grid-template-columns:1fr} .runs{grid-template-columns:1fr}
+  .fw{grid-template-columns:1fr;gap:14px} .fw .wall{writing-mode:horizontal-tb;border:0;border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);padding:8px;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto}}
+:focus-visible{outline:2px solid var(--int);outline-offset:2px}
 </style>
 </head>
 <body>
+<div class="bar wrap" style="max-width:none;padding-left:28px;padding-right:28px">
+  <span class="wm">SPEC·KIT·COMPOUND <b>/ EXTENSION</b></span>
+  <div class="seg" id="themeseg"><button data-th="dark" class="on">DARK</button><button data-th="light">LIGHT</button></div>
+</div>
+
 <div class="wrap">
-<header>
-  <div class="tag">A SPECKIT EXTENSION</div>
-  <h1>spec-kit-compound</h1>
-  <p class="sub">Intent-driven scoping, compound engineering memory, and cross-model validation of both the <em>plan</em> and the <em>diff</em> — the discipline that keeps spec-driven development from drifting into slop.</p>
-  <div class="pills"><span class="pill">ICE scoping</span><span class="pill">compound memory</span><span class="pill">planverify</span><span class="pill">intentguard</span><span class="pill">cross-model</span></div>
-  <p class="toc">
-    <a href="#why">Why</a> · <a href="#ice">ICE scoping</a> · <a href="#memory">Compound memory</a> · <a href="#chain">The chain</a> · <a href="#firewall">The firewall</a> · <a href="#runs">Two real runs</a> · <a href="#gate">Enforcement</a>
-  </p>
+
+<!-- HERO: the verdict stamp — judgment is the product -->
+<header class="hero">
+  <div>
+    <div class="eyebrow">// verdict · plan judged before a line of code</div>
+    <p class="stamp">BLOCKED<br>DRIFT
+      <span class="by">↳ returned by GPT-5 Codex — a checker that never saw the plan being written</span>
+    </p>
+  </div>
+  <div class="herothesis">
+    <h1>spec-kit-compound makes a model with no stake in the work judge it — before code, and after.</h1>
+    <p>A SpecKit extension: intent-driven scoping, compound memory, and cross-model validation of the plan and the diff.</p>
+    <div class="cta">
+      <a class="btn pri" href="https://github.com/aldefy/spec-kit-compound">GitHub ↗</a>
+      <a class="btn" href="#runs">See the evidence ↓</a>
+    </div>
+  </div>
 </header>
 
-<h2 id="why">Why this exists</h2>
-<p>LLMs are built to please. As context grows they affirm, drift, and quietly expand scope — a "while I'm in here, let me also…" reflex that turns a focused change into a sprawling one. Raw prompting has no checkpoints, so there is no moment for a human to intervene before the slop lands.</p>
-<p>Spec-driven development (SDD) — which predates AI — fixes this by breaking work down and validating at each step. <strong>SpecKit</strong> brings SDD to coding agents. <strong>spec-kit-compound</strong> adds the missing discipline on top of SpecKit: lock the boundary before planning, complete the obligation set, and have a model <em>with no stake in the work</em> judge it — before code (planverify) and after (intentguard).</p>
-<blockquote>It's an <em>extension</em>, not a harness. It sits on top of whatever harness SpecKit drives — Claude Code, Codex, Cursor, Gemini CLI — and injects intent / expectations / compound discipline around the standard chain.</blockquote>
+<!-- WHY -->
+<section id="why">
+  <div class="sechd"><span class="n">00</span><h2>Why this exists</h2></div>
+  <p class="lead">LLMs are built to please. As context grows they affirm, drift, and quietly expand scope — a <em>"while I'm in here, let me also…"</em> reflex that turns a focused change into a sprawling one. Raw prompting has no checkpoints, so nothing stops the slop before it lands.</p>
+  <p class="lead" style="margin-top:16px;color:var(--t-sec)">Spec-driven development adds checkpoints; SpecKit brings it to coding agents. spec-kit-compound adds the missing discipline: <em>lock the boundary before planning, complete the obligation set, and hand judgment to a different model</em> — once for the plan (planverify), once for the diff (intentguard). It's an extension, not a harness — it rides on Claude Code, Codex, Cursor, or Gemini CLI.</p>
+</section>
 
-<h2 id="ice">ICE — intent-driven scoping</h2>
-<p>Before any planning, an interview captures three things and locks them:</p>
-<div class="cols">
-  <div class="box"><h4>Intent</h4><p style="margin:0">What to build — and explicitly what <em>not</em> to touch. In-scope and out-of-scope are declared up front so drift is measurable against a boundary.</p></div>
-  <div class="box"><h4>Context</h4><p style="margin:0">The why, how, and where — e.g. a front-end change that depends on a back-end contract. Removes ambiguity before design starts.</p></div>
-  <div class="box"><h4>Expectation</h4><p style="margin:0">Positive scenarios and hard boundaries, kept in a <em>separate, builder-hidden file</em> — compartmentation that defends against reward-hacking (the builder can't teach to the test).</p></div>
+<!-- ICE -->
+<section id="ice">
+  <div class="sechd"><span class="n">01</span><h2>ICE — lock the boundary first</h2></div>
+  <p class="lead" style="margin-bottom:22px">An interview captures three things and freezes them, so drift has something measurable to be measured against.</p>
+  <div class="triad">
+    <div class="cell"><div class="k">I</div><div class="t">Intent</div><p>What to build — and explicitly what <em>not</em> to touch. In-scope and out-of-scope, declared up front.</p></div>
+    <div class="cell"><div class="k">C</div><div class="t">Context</div><p>The why, how, and where — dependencies and contracts. Ambiguity removed before design starts.</p></div>
+    <div class="cell"><div class="k">E</div><div class="t">Expectation</div><p>Scenarios and hard boundaries in a <em>builder-hidden</em> file — compartmentation against teaching to the test.</p></div>
+  </div>
+</section>
+
+<!-- MEMORY -->
+<section id="memory">
+  <div class="sechd"><span class="n">02</span><h2>Compound engineering memory</h2></div>
+  <p class="lead">A local store of <em>ADRs, corrections, and patterns</em> — decisions made, mistakes hit, fixes that worked. It persists across features, so learnings carry forward instead of evaporating with the context window. Committed to git: a teammate's LLM reads the same hard-won context. Every feature writes back what it learned — the system compounds.</p>
+</section>
+
+<!-- THE CHAIN -->
+<section id="chain">
+  <div class="sechd"><span class="n">03</span><h2>The chain — two gates wired in</h2></div>
+  <p class="lead" style="margin-bottom:8px">Eleven steps. The two red nodes are the validation gates — same firewall, different moments.</p>
+  <div class="strip">
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">load</span><span class="idx">01</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">intent</span><span class="idx">02</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">expect</span><span class="idx">03</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">spec</span><span class="idx">04</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">plan</span><span class="idx">05</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">tasks</span><span class="idx">06</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">gapfill</span><span class="idx">07</span></div>
+    <div class="node gate"><div class="wire"></div><div class="dot"></div><span class="cap">planverify</span><span class="idx">08</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">implement</span><span class="idx">09</span></div>
+    <div class="node gate"><div class="wire"></div><div class="dot"></div><span class="cap">intentguard</span><span class="idx">10</span></div>
+    <div class="node"><div class="wire"></div><div class="dot"></div><span class="cap">writeback</span><span class="idx">11</span></div>
+  </div>
+  <div class="gatekey"><span class="d"></span> RED = a gate where a different model judges the work</div>
+
+  <div class="scroll" style="margin-top:34px"><table>
+    <thead><tr><th>Step</th><th>What it does</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>LOAD</td><td>Read committed ADRs / corrections / patterns</td><td class="why">Past lessons carry forward</td></tr>
+      <tr><td>INTENT</td><td>Lock goal, in/out-of-scope, constraints, failure conditions</td><td class="why">Define the boundary before planning</td></tr>
+      <tr><td>EXPECTATIONS</td><td>Scenarios in a separate, builder-hidden file</td><td class="why">Defend against reward-hacking</td></tr>
+      <tr><td>SPEC · PLAN · TASKS</td><td>Standard SpecKit SDD</td><td class="why">PRD → design → task list</td></tr>
+      <tr><td>GAPFILL</td><td>Append missing constraint / failure / edge tests</td><td class="why">Complete the obligation set</td></tr>
+      <tr class="gate"><td>PLANVERIFY</td><td>Independent cross-model checker judges the plan</td><td class="why">Catch drift before any code — the cheapest catch</td></tr>
+      <tr><td>IMPLEMENT</td><td>Build</td><td class="why">Only an approved plan reaches here</td></tr>
+      <tr class="gate"><td>INTENTGUARD</td><td>Same firewall judges the git diff</td><td class="why">Confirm the executor stayed in scope</td></tr>
+      <tr><td>WRITEBACK</td><td>Persist new lessons to the store</td><td class="why">The next feature starts smarter</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- FIREWALL -->
+<section id="firewall">
+  <div class="sechd"><span class="n">04</span><h2>The firewall — why a stranger judges</h2></div>
+  <p class="lead" style="margin-bottom:24px">Whoever did the work is its worst judge — motivated reasoning, plus they remember what they <em>meant</em>. So each gate seals a briefing of <em>only</em> the locked criteria + the artifact + mechanical facts, and hands it across a wall to a checker that never saw the work.</p>
+  <div class="fw">
+    <div class="side"><div class="role">Builder</div><div class="who">writes the plan / the diff</div><div class="note">remembers what it meant</div></div>
+    <div class="wall">sealed briefing →</div>
+    <div class="side"><div class="role">Checker</div><div class="who">judges against locked criteria</div><div class="note">no stake · fresh context</div></div>
+  </div>
+  <div class="ladder">
+    <span class="tier"><b>Tier 1</b> · cross-model (Claude → Codex / Gemini)</span>
+    <span class="tier"><b>Tier 2</b> · cross-tier (Opus → Haiku)</span>
+    <span class="tier"><b>Tier 3</b> · same model, fresh context</span>
+  </div>
+  <div class="verdicts">
+    <span class="vchip vp">PASS</span><span class="vchip vr">REPLAN_ALLOWED</span><span class="vchip vb">BLOCKED_DRIFT</span>
+    <span class="lbl" style="align-self:center">planverify · intentguard returns PASS / REVIEW / BLOCKED</span>
+  </div>
+</section>
+
+<!-- RUNS -->
+<section id="runs">
+  <div class="sechd"><span class="n">05</span><h2>Evidence — two real repos</h2></div>
+  <p class="lead" style="margin-bottom:24px">Each given a deliberately drifting plan, each judged by <em>GPT-5 Codex</em> — a different vendor that never saw the planning. Both stamped <span style="color:var(--accent)">BLOCKED_DRIFT</span>.</p>
+  <div class="runs">
+    <div class="run">
+      <div class="repo">aldefy/kaizen-android</div>
+      <h3>mark a task complete</h3>
+      <p class="desc"><code>setCompleted()</code> already exists — the feature needs only the UI.</p>
+      <div class="gauge"><span class="num">6</span><span class="gl">out-of-scope paths in the plan</span></div>
+      <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i class="ok"></i></div>
+      <ul>
+        <li>schema migration · new repo method</li>
+        <li>reminders · feature flag · social post</li>
+      </ul>
+      <div class="vstamp">BLOCKED_DRIFT · C3 correctly PASSed</div>
+    </div>
+    <div class="run">
+      <div class="repo">aldefy/nowinandroid · Now in Android</div>
+      <h3>reading history screen</h3>
+      <p class="desc"><code>viewedNewsResources</code> already tracked — History just reads it.</p>
+      <div class="gauge"><span class="num">4</span><span class="gl">out-of-scope paths + 1 coverage gap</span></div>
+      <div class="bars"><i></i><i></i><i></i><i></i><i class="warn"></i></div>
+      <ul>
+        <li>proto schema · repo method · model field · bookmarks</li>
+        <li><b>E6 eager-load</b> flagged — the demo's 311-articles bug, at plan time</li>
+      </ul>
+      <div class="vstamp">BLOCKED_DRIFT · caught before any code</div>
+    </div>
+  </div>
+  <p class="pull">It surfaces drift by a model with <em>no stake in the work</em> — at the cheapest place to catch it. It doesn't auto-fix. It makes the human land <em>early</em>.</p>
+</section>
+
+<!-- ENFORCEMENT -->
+<section id="gate">
+  <div class="sechd"><span class="n">06</span><h2>Enforcement — opt-in, cross-vendor</h2></div>
+  <ul class="plain">
+    <li>Gates are advisory by default. <span class="kbd">SKC_PLANVERIFY_GATE=block</span> turns the teeth on.</li>
+    <li>A <b>PreToolUse hook</b> — working under <b>both Claude Code and Codex CLI</b> (the converged exit-2 contract) — blocks the first source write when the verdict is missing or BLOCKED_DRIFT. Doc and spec writes are never blocked.</li>
+    <li>A live <b>localhost dashboard</b> shows the whole chain — every stage, the planverify drift panel, file diffs, token spend — read-only, zero dependencies.</li>
+  </ul>
+</section>
+
+<footer class="wrap" style="max-width:var(--maxw)">
+  <span><a href="https://github.com/aldefy/spec-kit-compound">github.com/aldefy/spec-kit-compound</a></span>
+  <span>MIT · BUILT FOR <a href="https://github.com/github/spec-kit">SPECKIT</a></span>
+</footer>
 </div>
 
-<h2 id="memory">Compound engineering memory</h2>
-<p>A local store (<code>docs/compound/</code>) of <strong>ADRs, corrections, and patterns</strong> — decisions made, mistakes hit, fixes that worked. It persists across features, so learnings carry forward instead of evaporating when the context window does. It's committed to git, so a teammate (and their LLM) reads the same hard-won context. Each feature ends by writing back what it learned — the system gets smarter every cycle.</p>
-
-<h2 id="chain">The chain — each step's logic</h2>
-<div class="chain">
-  <div class="s">load</div><div class="s">intent</div><div class="s">expect</div><div class="s">spec</div><div class="s">plan</div><div class="s">tasks</div><div class="s">gapfill</div><div class="s add">planverify</div><div class="s">implement</div><div class="s add">intentguard</div><div class="s">writeback</div>
-</div>
-<table>
-<thead><tr><th>Step</th><th>What it does</th><th>Why</th></tr></thead>
-<tbody>
-<tr><td>LOAD</td><td>Read committed ADRs / corrections / patterns into context</td><td>Past lessons carry forward; don't repeat mistakes</td></tr>
-<tr><td>INTENT</td><td>Lock goal, in-scope, out-of-scope, constraints, failure conditions</td><td>Define the boundary <em>before</em> planning, so drift is measurable</td></tr>
-<tr><td>EXPECTATIONS</td><td>Positive + edge scenarios in a separate, builder-hidden file</td><td>Compartmentation defends against reward-hacking</td></tr>
-<tr><td>SPEC / PLAN / TASKS</td><td>Standard SpecKit spec-driven development</td><td>PRD → design → task list</td></tr>
-<tr><td>GAPFILL</td><td>Append missing constraint / failure / OOS / edge tests</td><td>Complete the obligation set the happy-path tasks miss</td></tr>
-<tr><td><strong>PLANVERIFY</strong></td><td>Judge the <em>plan</em> via an independent cross-model checker</td><td>Catch plan drift before any code — the cheapest catch</td></tr>
-<tr><td>IMPLEMENT</td><td>Build</td><td>Only an approved plan should reach here</td></tr>
-<tr><td><strong>INTENTGUARD</strong></td><td>Judge the <em>git diff</em> via the same firewall</td><td>Confirm the executor actually stayed in scope</td></tr>
-<tr><td>WRITEBACK</td><td>Persist new lessons to the store</td><td>Compounding: the next feature starts smarter</td></tr>
-</tbody>
-</table>
-<p><strong>planverify</strong> and <strong>intentguard</strong> are the two validation gates — same mechanism, different moments. planverify asks <em>"is the proposed plan drifting, before files are edited?"</em>; intentguard asks <em>"did the actual diff drift, after implementation?"</em> Catching it at plan time is far cheaper than unwinding it from a diff.</p>
-
-<h2 id="firewall">The firewall — why a different model judges</h2>
-<p>Whoever did the work is the worst judge of whether it stayed in scope — they have motivated reasoning and they remember what they <em>meant</em>. So both gates seal a <strong>briefing</strong> containing <em>only</em> the locked criteria, the artifact under judgment (plan or diff), and mechanical facts — <strong>never the builder's reasoning</strong> — and hand it to an independent checker that climbs an independence ladder:</p>
-<ul>
-<li><strong>Tier 1 — cross-model:</strong> a different-vendor model (Claude → Codex/Gemini). Different weights + fresh context + different priors. Strongest.</li>
-<li><strong>Tier 2 — cross-tier:</strong> a cheaper sibling (Opus → Haiku).</li>
-<li><strong>Tier 3 — same-model, fresh context:</strong> the honest floor.</li>
-</ul>
-<p>planverify returns <span class="verdict v-pass">PASS</span> <span class="verdict v-review">REPLAN_ALLOWED</span> <span class="verdict v-block">BLOCKED_DRIFT</span>; intentguard returns PASS / REVIEW / BLOCKED. The verdict records <em>who</em> judged and at what tier — so "the builder and the checker never share a workspace" is literally true, never overstated.</p>
-
-<h2 id="runs">Two real runs (planverify)</h2>
-<p>Validated end-to-end on two open-source Android repos, each with a deliberately drifting plan. Both were judged by <strong>GPT-5 Codex</strong> — a different vendor that never saw the planning. Both returned <span class="verdict v-block">BLOCKED_DRIFT</span>.</p>
-
-<div class="card">
-  <div class="repo">aldefy/kaizen-android</div>
-  <h3>"mark a task complete from the list"</h3>
-  <p>The repo's <code>setCompleted()</code> already exists, so the feature needs only the <code>tasks/</code> UI. The plan drifted into a schema migration, a new repo method, reminder cleanup, a feature flag, and a social post — <strong>6 out-of-scope paths</strong>. The checker also <span class="verdict v-pass">PASSed</span> C3 (route through the ViewModel), proving it distinguished the one in-scope-correct decision from the drift.</p>
-</div>
-
-<div class="card">
-  <div class="repo">aldefy/nowinandroid · Now in Android</div>
-  <h3>"reading history screen"</h3>
-  <p>NiA already tracks <code>viewedNewsResources</code>, so History is a new <code>feature/history</code> module reading existing state. The plan drifted into <strong>4 out-of-scope paths</strong> — proto schema, a new repo method, a model field, and the bookmarks screen. Bonus: obligation coverage flagged <strong>E6 (large history) as REPLAN_ALLOWED</strong> because the plan loaded the full list into memory — the <em>exact eager-load failure from the live demo</em> (all 311 articles on launch), caught at <strong>plan time</strong>, before a line of code.</p>
-</div>
-
-<blockquote>The system surfaces drift — and coverage gaps — by a model with no stake in the work, at the cheapest possible place to catch them. It doesn't auto-fix; it makes the human intervention land <em>early</em>.</blockquote>
-
-<h2 id="gate">Enforcement (opt-in, cross-vendor)</h2>
-<p>By default the gates are advisory. Set <span class="kbd">SKC_PLANVERIFY_GATE=block</span> to enforce planverify: a <strong>PreToolUse hook</strong> — working under both Claude Code and Codex CLI (the converged exit-2 contract) — blocks the first source-file write when the latest verdict is missing or BLOCKED_DRIFT; doc and spec writes are never blocked. A live <strong>localhost dashboard</strong> visualizes the whole chain — every stage, the planverify drift panel, file diffs, token spend, task progress — read-only, no dependencies.</p>
-
-<div class="foot">
-  <a href="https://github.com/aldefy/spec-kit-compound">github.com/aldefy/spec-kit-compound</a> · MIT · built for <a href="https://github.com/github/spec-kit">SpecKit</a>
-</div>
-</div>
+<script>
+(function(){
+  const root=document.documentElement, seg=document.getElementById("themeseg");
+  function set(t){ root.setAttribute("data-theme",t); seg.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.th===t)); try{localStorage.setItem("skc-page-theme",t)}catch(e){} }
+  seg.querySelectorAll("button").forEach(b=>b.onclick=()=>set(b.dataset.th));
+  let t="dark"; try{ t=localStorage.getItem("skc-page-theme")|| (matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"); }catch(e){}
+  set(t);
+})();
+</script>
 </body>
 </html>
