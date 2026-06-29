@@ -167,6 +167,54 @@ belt-and-suspenders:
 
 ---
 
+## planverify in action — two real runs
+
+planverify was validated end-to-end on two real open-source Android repos, each
+with a deliberately drifting plan. In both, the orchestrator ran surface analysis,
+sealed a briefing (no planner context), and dispatched judgment to an **independent
+cross-model checker (GPT-5 Codex)** — a different vendor that never saw the planning.
+Both returned **BLOCKED_DRIFT**, citing the exact out-of-scope expansions.
+
+### Run 1 — `aldefy/kaizen-android` · "mark a task complete from the list"
+
+The repo's `TaskRepository.setCompleted(id, completed)` already exists, so the
+feature needs only the `tasks/` UI. The plan drifted into five out-of-scope areas:
+
+| Drift | Files | Why blocked |
+|---|---|---|
+| Schema migration | `data/TaskEntity.kt`, `data/KaizenDatabase.kt`, `data/RoomTaskRepository.kt` | OOS `data/**` + violates C2 (no schema change) / F2 |
+| New repo method | `data/RoomTaskRepository.kt`, `domain/TaskRepository.kt` | violates C1 (reuse `setCompleted`) |
+| Reminder cleanup | `reminders/AlarmReminderScheduler.kt` | OOS `reminders/**` |
+| Feature flag | `flags/FeatureFlags.kt` | OOS `flags/**` |
+| Social post | `feature/social/FriendsRepository.kt` | OOS `social/**` |
+
+Checker verdict: **BLOCKED_DRIFT** — 6 out-of-scope paths + C1 + C2. C3 (route through ViewModel) correctly **PASSed** — the checker distinguished the one in-scope-correct decision from the drift.
+
+### Run 2 — `aldefy/nowinandroid` (Now in Android) · "reading history screen"
+
+NiA already tracks `viewedNewsResources` in `UserData`, so History is a new
+`feature/history` module reading existing state. The plan drifted into the data
+layer and a sibling feature:
+
+| Drift | Area | Why blocked |
+|---|---|---|
+| Proto schema bump | `core/datastore/**` | OOS + C2 / F2 |
+| New repo method | `core/data/**` | OOS + C1 |
+| Model field | `core/model/**` | OOS |
+| Bookmarks badge | `feature/bookmarks/**` | OOS |
+
+Checker verdict: **BLOCKED_DRIFT**. Bonus — P3c obligation coverage flagged **E6
+(large history) as REPLAN_ALLOWED** because the plan loaded the full list into
+memory: the *exact eager-load failure* from the live demo (all 311 articles on
+launch), caught at **plan time** before a line of code was written.
+
+> The takeaway: planverify catches scope drift *and* coverage gaps in the plan,
+> by a model with no stake in the plan — the cheapest possible place to catch them.
+
+A full walkthrough with every step's logic is on the **[project page](https://aldefy.github.io/spec-kit-compound/)**.
+
+---
+
 ## Install
 
 Requires SpecKit (`specify`) ≥ 0.9 and `jq`. The extension is agent-agnostic — the same files install whether your harness is **Claude Code** or **Codex**; only the SpecKit `--integration` you initialized the project with differs. Run all commands from the **project root** (the directory holding `.specify/`).
