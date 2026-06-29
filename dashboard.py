@@ -101,13 +101,52 @@ def parse_intentguard(text):
     return {"verdict": verdict, "drift": drift}
 
 
+_PV_KINDS = {"P3a": "surface", "P3b": "drift-request", "P3d": "constraint"}
+
+
+def parse_planverify(text):
+    """Return {'verdict': str|None, 'drift': [...]} from a planverify report.
+
+    Mirrors parse_intentguard but over the P3a/P3b/P3d sections and the
+    planverify verdict vocabulary (PASS / REPLAN_ALLOWED / BLOCKED_DRIFT).
+    BLOCKED_DRIFT -> 'blocked' severity, REPLAN_ALLOWED -> 'review'.
+    """
+    verdict = parse_frontmatter(text).get("verdict")
+    drift = []
+    current = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            head = line[3:].strip()
+            current = None
+            for level in _PV_KINDS:
+                if head.startswith(level):
+                    current = level
+                    break
+            continue
+        if not current:
+            continue
+        m = _BULLET_RE.match(line)
+        if not m:
+            continue
+        body = m.group(1).strip()
+        upper = body.upper()
+        if "BLOCKED_DRIFT" in upper or "BLOCKED" in upper:
+            sev = "blocked"
+        elif "REPLAN_ALLOWED" in upper or "REPLAN" in upper or "REVIEW" in upper:
+            sev = "review"
+        else:
+            continue  # PASS / clean line — not drift
+        drift.append({"level": current, "kind": _PV_KINDS[current], "text": body, "severity": sev})
+    return {"verdict": verdict, "drift": drift}
+
+
 import os
 import glob
 import subprocess
 
 STAGES = [
     "intent", "expectations", "specify", "plan",
-    "tasks", "gapfill", "implement", "intentguard", "writeback",
+    "tasks", "gapfill", "planverify", "implement", "intentguard", "writeback",
 ]
 
 # String the gapfill command stamps into tasks.md for appended tests.
@@ -120,6 +159,7 @@ STAGE_DESCRIPTIONS = {
     "plan": "design + architecture",
     "tasks": "dependency-ordered task list",
     "gapfill": "add missing constraint/failure/OOS tests",
+    "planverify": "judge the plan -> PASS / REPLAN_ALLOWED / BLOCKED_DRIFT",
     "implement": "build (tasks checked off)",
     "intentguard": "L3 validation -> PASS / REVIEW / BLOCKED",
     "writeback": "persist ADRs / corrections / patterns",
@@ -333,6 +373,7 @@ def scan_state(repo_root, now=None, home=None):
 
         exp_path = os.path.join(repo_root, "docs/expectations", slug + ".expectations.md")
         guard_path = os.path.join(repo_root, "docs/intents", slug + ".intentguard.md")
+        planverify_path = os.path.join(repo_root, "docs/intents", slug + ".planverify.md")
 
         tasks_file = os.path.join(spec_abs, "tasks.md") if spec_abs else None
         tasks_text = _read(tasks_file) if tasks_file else ""
@@ -344,6 +385,10 @@ def scan_state(repo_root, now=None, home=None):
         guard_text = _read(guard_path) if os.path.isfile(guard_path) else ""
         guard_parsed = parse_intentguard(guard_text) if guard_text else {"verdict": None, "drift": []}
         guard_verdict = guard_parsed["verdict"]
+
+        planverify_text = _read(planverify_path) if os.path.isfile(planverify_path) else ""
+        planverify_parsed = parse_planverify(planverify_text) if planverify_text else {"verdict": None, "drift": []}
+        planverify_verdict = planverify_parsed["verdict"]
 
         content = {
             "goal": extract_goal(intent_text),
@@ -357,6 +402,8 @@ def scan_state(repo_root, now=None, home=None):
         files = [os.path.relpath(intent_path, repo_root)]
         if os.path.isfile(exp_path):
             files.append(os.path.relpath(exp_path, repo_root))
+        if os.path.isfile(planverify_path):
+            files.append(os.path.relpath(planverify_path, repo_root))
         if os.path.isfile(guard_path):
             files.append(os.path.relpath(guard_path, repo_root))
 
@@ -370,6 +417,7 @@ def scan_state(repo_root, now=None, home=None):
             "plan": done(bool(spec_abs) and _stage_present(spec_abs, "plan.md")),
             "tasks": done(bool(spec_abs) and _stage_present(spec_abs, "tasks.md")),
             "gapfill": done(_GAPFILL_MARKER in tasks_text),
+            "planverify": done(os.path.isfile(planverify_path)),
             "implement": done(task_counts["total"] > 0 and task_counts["done"] == task_counts["total"]),
             "intentguard": done(os.path.isfile(guard_path)),
             # writeback is done when the guard has run AND the store has a file
@@ -383,10 +431,14 @@ def scan_state(repo_root, now=None, home=None):
         stages["tasks"].update(done=task_counts["done"], total=task_counts["total"])
         stages["intentguard"]["verdict"] = guard_verdict
         stages["intentguard"]["drift"] = guard_parsed["drift"]
+        stages["planverify"]["verdict"] = planverify_verdict
+        stages["planverify"]["drift"] = planverify_parsed["drift"]
 
         _compute_states(stages)
         if guard_verdict == "BLOCKED":
             stages["intentguard"]["state"] = "blocked"
+        if planverify_verdict == "BLOCKED_DRIFT":
+            stages["planverify"]["state"] = "blocked"
 
         # Map each stage to the document it represents, when that file exists,
         # so the UI can open the raw markdown on click. Paths are repo-relative.
@@ -402,6 +454,8 @@ def scan_state(repo_root, now=None, home=None):
                 if os.path.isfile(fp):
                     stage_files[stage] = _rel(fp)
             stage_files["gapfill"] = stage_files.get("tasks")  # gapfill appends to tasks.md
+        if os.path.isfile(planverify_path):
+            stage_files["planverify"] = _rel(planverify_path)
         if os.path.isfile(guard_path):
             stage_files["intentguard"] = _rel(guard_path)
 
@@ -677,6 +731,30 @@ header{display:flex;justify-content:space-between;align-items:center;
   padding:7px 0;border-bottom:1px solid var(--border);line-height:1.45}
 .vbody .raw{font-family:var(--mono);font-size:12.5px;line-height:1.7;white-space:pre-wrap;
   word-break:break-word;color:var(--t-primary);margin:0}
+/* ── rendered markdown (self-contained renderer; no CDN) ── */
+.md{font-family:var(--ui);font-weight:300;font-size:calc(14px * var(--fs));color:var(--t-primary);line-height:1.6}
+.md-h{font-family:var(--mono);letter-spacing:.04em;color:var(--t-display);line-height:1.25;margin:20px 0 10px}
+.md-h:first-child{margin-top:0}
+.md-h1{font-size:calc(20px * var(--fs));text-transform:none} .md-h2{font-size:calc(16px * var(--fs))}
+.md-h3{font-size:calc(12px * var(--fs));letter-spacing:.08em;text-transform:uppercase;color:var(--t-secondary)}
+.md-h4,.md-h5,.md-h6{font-size:calc(11px * var(--fs));letter-spacing:.08em;text-transform:uppercase;color:var(--t-secondary)}
+.md-p{margin:0 0 12px}
+.md-ul,.md-ol{margin:0 0 12px;padding-left:22px}
+.md-ul{list-style:disc} .md-ol{list-style:decimal}
+.md li{padding:3px 0;line-height:1.5}
+.md-ul.tasklist{list-style:none;padding-left:0}
+.md-ul.tasklist li{font-family:var(--mono);font-size:calc(12px * var(--fs));display:flex;gap:10px;align-items:baseline}
+.md-ul.tasklist .box{color:var(--t-disabled);flex:0 0 auto} .md-ul.tasklist li.x .box{color:var(--success)}
+.md code{font-family:var(--mono);font-size:.92em;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px}
+.md a{color:var(--interactive);text-decoration:underline;text-underline-offset:2px}
+.md strong{font-weight:700;color:var(--t-display)} .md em{font-style:italic}
+.md-code{font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin:0 0 14px;color:var(--t-primary);overflow-x:auto}
+.md-bq{border-left:3px solid var(--border-vis);margin:0 0 12px;padding:4px 0 4px 14px;color:var(--t-secondary)}
+.md-hr{border:0;border-top:1px solid var(--border);margin:18px 0}
+.md-table{border-collapse:collapse;width:100%;margin:0 0 14px;font-size:calc(13px * var(--fs));display:block;overflow-x:auto}
+.md-table th,.md-table td{border:1px solid var(--border-vis);padding:6px 10px;text-align:left;vertical-align:top}
+.md-table th{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.04em;text-transform:uppercase;color:var(--t-secondary);background:var(--surface)}
 .vbody .tasklist li{font-family:var(--mono);font-size:calc(12px * var(--fs));display:flex;gap:10px;align-items:baseline}
 .vbody .tasklist li .box{color:var(--t-disabled);flex:0 0 auto;white-space:nowrap}
 .dtree{margin:12px 0 0;border:1px solid var(--border-vis);border-radius:6px;padding:8px 10px;max-height:22vh;overflow:auto}
@@ -748,7 +826,7 @@ header{display:flex;justify-content:space-between;align-items:center;
 </div>
 
 <script>
-const LABELS={intent:"INTENT",expectations:"EXPECT",specify:"SPEC",plan:"PLAN",tasks:"TASKS",gapfill:"GAPFILL",implement:"IMPL",intentguard:"GUARD",writeback:"WRITEBACK"};
+const LABELS={intent:"INTENT",expectations:"EXPECT",specify:"SPEC",plan:"PLAN",tasks:"TASKS",gapfill:"GAPFILL",planverify:"PLANVERIFY",implement:"IMPL",intentguard:"GUARD",writeback:"WRITEBACK"};
 let STATE=null, SEL=null, SELSTAGE=null, SELDOC=null, VIEWMODE="summary";
 const docCache={}; let DOCSHOWN=null, DIFFTEXT=null;
 
@@ -799,7 +877,7 @@ function feature(){ return (STATE.features||[]).find(f=>f.slug===SEL); }
 
 function docLabel(p){
   const parts=p.split('/'); let f=parts.pop().replace(/\.md$/,'');
-  const m=f.match(/\.(intent|expectations|intentguard)$/); if(m) f=m[1];
+  const m=f.match(/\.(intent|expectations|planverify|intentguard)$/); if(m) f=m[1];
   const dir=parts.pop()||'';
   const pre=dir==='contracts'?'CONTRACT·':dir==='checklists'?'CHECK·':'';
   return (pre+f).toUpperCase();
@@ -814,6 +892,7 @@ function hasSummary(feat,stage){
   if(stage==="intent") return !!(c.goal||(c.constraints||[]).length||(c.failures||[]).length||(c.out_of_scope||[]).length);
   if(stage==="expectations") return !!((c.expectations_positive||[]).length||(c.expectations_edge||[]).length);
   if(stage==="intentguard") return !!(feat.stages.intentguard.verdict||(feat.stages.intentguard.drift||[]).length);
+  if(stage==="planverify") return !!(feat.stages.planverify.verdict||(feat.stages.planverify.drift||[]).length);
   return false;
 }
 function listBlock(t,items){ return (!items||!items.length)?"":`<h3>${esc(t)}</h3><ul>${items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`; }
@@ -824,10 +903,75 @@ function summaryFor(feat,stage){
   if(stage==="intentguard"){
     const g=feat.stages.intentguard, vk=g.verdict==="PASS"?"pass":g.verdict==="BLOCKED"?"blocked":"review";
     let h=`<div class="gbadge ${vk}">${esc(g.verdict||"NOT VALIDATED")}</div>`;
-    if(g.drift&&g.drift.length) h+=`<ul class="drift" style="margin-top:12px">`+g.drift.map(x=>`<li class="${esc(x.severity)}"><b>${esc(x.level)}</b>${esc(x.text)}</li>`).join("")+`</ul>`;
+    if(g.drift&&g.drift.length) h+=`<ul class="drift" style="margin-top:12px">`+g.drift.map(x=>`<li class="${esc(x.severity)}"><b>${esc(x.level)}</b>${mdInline(x.text)}</li>`).join("")+`</ul>`;
+    return h;
+  }
+  if(stage==="planverify"){
+    const g=feat.stages.planverify, vk=g.verdict==="PASS"?"pass":g.verdict==="BLOCKED_DRIFT"?"blocked":"review";
+    let h=`<div class="gbadge ${vk}">${esc(g.verdict||"NOT VERIFIED")}</div>`;
+    if(g.drift&&g.drift.length) h+=`<ul class="drift" style="margin-top:12px">`+g.drift.map(x=>`<li class="${esc(x.severity)}"><b>${esc(x.level)}</b>${mdInline(x.text)}</li>`).join("")+`</ul>`;
     return h;
   }
   return "";
+}
+/* inline markdown: code, bold, italic, links — all escaped first */
+function mdInline(s){
+  s=esc(s);
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/(^|[^*])\*([^*]+)\*/g,'$1<em>$2</em>');
+  s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(m,t,u)=>/^https?:\/\//.test(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">${t}</a>`:t);
+  return s;
+}
+/* block markdown -> HTML. Self-contained (CSP forbids any CDN lib). Handles
+   headings, fenced + indented code, blockquotes, hr, GFM tables, ordered /
+   unordered / task lists, and paragraphs. */
+function mdHtml(text){
+  if(text==null) return `<div class="loading">[ LOADING ]</div>`;
+  // strip a leading YAML frontmatter block — shown via the SUMMARY tab instead
+  text=text.replace(/^---\n[\s\S]*?\n---\n?/,'');
+  const lines=text.split("\n"); let h="",i=0;
+  const closeList=st=>{ while(st.length) h+=st.pop()==="ol"?"</ol>":"</ul>"; };
+  const lst=[];
+  while(i<lines.length){
+    let l=lines[i];
+    // fenced code
+    const fence=l.match(/^```(.*)$/);
+    if(fence){ closeList(lst); i++; let buf=[];
+      while(i<lines.length && !/^```/.test(lines[i])){ buf.push(lines[i]); i++; }
+      i++; h+=`<pre class="md-code">${esc(buf.join("\n"))}</pre>`; continue; }
+    // table: header row | --- row | body rows
+    if(/^\s*\|.*\|\s*$/.test(l) && i+1<lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1])){
+      closeList(lst);
+      const cells=r=>r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+      const head=cells(l); i+=2; let rows=[];
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){ rows.push(cells(lines[i])); i++; }
+      h+=`<table class="md-table"><thead><tr>${head.map(c=>`<th>${mdInline(c)}</th>`).join("")}</tr></thead><tbody>`
+        +rows.map(r=>`<tr>${r.map(c=>`<td>${mdInline(c)}</td>`).join("")}</tr>`).join("")+`</tbody></table>`;
+      continue;
+    }
+    const hd=l.match(/^(#{1,6})\s+(.*)$/);
+    if(hd){ closeList(lst); const n=hd[1].length; h+=`<h${n} class="md-h md-h${n}">${mdInline(hd[2])}</h${n}>`; i++; continue; }
+    if(/^\s*([-*_])\1{2,}\s*$/.test(l)){ closeList(lst); h+=`<hr class="md-hr">`; i++; continue; }
+    const bq=l.match(/^>\s?(.*)$/);
+    if(bq){ closeList(lst); h+=`<blockquote class="md-bq">${mdInline(bq[1])}</blockquote>`; i++; continue; }
+    const task=l.match(/^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/);
+    if(task){ if(lst[lst.length-1]!=="ul"){ closeList(lst); h+=`<ul class="md-ul tasklist">`; lst.push("ul"); }
+      h+=`<li class="${task[1]===' '?'':'x'}"><span class="box">${task[1]===' '?'[ ]':'[x]'}</span>${mdInline(task[2])}</li>`; i++; continue; }
+    const ul=l.match(/^\s*[-*]\s+(.*)$/);
+    if(ul){ if(lst[lst.length-1]!=="ul"){ closeList(lst); h+=`<ul class="md-ul">`; lst.push("ul"); }
+      h+=`<li>${mdInline(ul[1])}</li>`; i++; continue; }
+    const ol=l.match(/^\s*\d+\.\s+(.*)$/);
+    if(ol){ if(lst[lst.length-1]!=="ol"){ closeList(lst); h+=`<ol class="md-ol">`; lst.push("ol"); }
+      h+=`<li>${mdInline(ol[1])}</li>`; i++; continue; }
+    if(/^\s*$/.test(l)){ closeList(lst); i++; continue; }
+    // paragraph: gather consecutive non-blank, non-structural lines
+    closeList(lst); let para=[l]; i++;
+    while(i<lines.length && !/^\s*$/.test(lines[i]) && !/^(#{1,6}\s|```|>\s?|\s*[-*]\s|\s*\d+\.\s)/.test(lines[i]) && !/^\s*\|.*\|\s*$/.test(lines[i])){ para.push(lines[i]); i++; }
+    h+=`<p class="md-p">${mdInline(para.join(" "))}</p>`;
+  }
+  closeList(lst);
+  return `<div class="md">${h}</div>`;
 }
 function rawHtml(stage,text){
   if(text==null) return `<div class="loading">[ LOADING ]</div>`;
@@ -838,7 +982,7 @@ function rawHtml(stage,text){
     }).filter(Boolean);
     if(items.length) return `<ul class="tasklist">${items.join("")}</ul>`;
   }
-  return `<pre class="raw">${esc(text)}</pre>`;
+  return mdHtml(text);
 }
 async function fetchDoc(path){
   if(docCache[path]) return docCache[path];
@@ -932,6 +1076,11 @@ function chainHtml(feat){
 
 function renderDetail(){
   const d=document.getElementById("detail"), feat=feature();
+  // Preserve scroll across the 3s poll re-render: the whole detail pane scrolls,
+  // and the doc body (.vbody) scrolls independently. Rebuilding innerHTML resets
+  // both to 0 — capture and restore so the view doesn't jump to the top.
+  const _detailTop=d.scrollTop;
+  const _vb=d.querySelector(".vbody"); const _vbTop=_vb?_vb.scrollTop:0;
   if(!feat){ d.innerHTML=`<div class="empty">${(STATE.features||[]).length?"[ SELECT A FEATURE ]":"[ NO FEATURES — RUN /SPECKIT-COMPOUND-INTENT ]"}</div>`; return; }
   const [ck,ctxt]=guardChip(feat), c=feat.content||{};
   const done=doneCount(feat), total=STATE.stages.length;
@@ -963,6 +1112,9 @@ function renderDetail(){
   });
   d.querySelectorAll(".storedoc[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
   renderViewer();
+  // restore scroll positions captured before the rebuild
+  d.scrollTop=_detailTop;
+  const _nvb=d.querySelector(".vbody"); if(_nvb) _nvb.scrollTop=_vbTop;
 }
 
 function statsHtml(){
@@ -1033,7 +1185,11 @@ async function poll(){
     if(SEL===null && (STATE.features||[]).length){
       SEL=STATE.features[0].slug;
       if(SELSTAGE===null && SELDOC===null){ const f0=STATE.features[0], sf=f0.stage_files||{};
-        for(let i=STATE.stages.length-1;i>=0;i--){ const n=STATE.stages[i]; const stt=(f0.stages[n]||{}).state;
+        // ?stage=planverify deep-links a stage (shareable / screenshots); else
+        // auto-pick the latest done|current stage that has a doc.
+        const qs=new URLSearchParams(location.search).get("stage");
+        if(qs && sf[qs]){ SELSTAGE=qs; VIEWMODE=hasSummary(f0,qs)?"summary":"raw"; }
+        else for(let i=STATE.stages.length-1;i>=0;i--){ const n=STATE.stages[i]; const stt=(f0.stages[n]||{}).state;
           if(sf[n] && (stt==="done"||stt==="current")){ SELSTAGE=n; VIEWMODE=hasSummary(f0,n)?"summary":"raw"; break; } } }
     }
     renderMaster(); renderDetail();
