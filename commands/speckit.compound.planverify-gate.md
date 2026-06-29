@@ -14,7 +14,7 @@ Its job: optionally gate `/speckit-implement` on the latest planverify verdict.
 This is the **spec-kit phase-boundary** half of the planverify gate (fires under
 Claude + spec-kit). The **cross-vendor** half — a `PreToolUse` hook that works
 under both Claude Code and Codex CLI — is installed separately via
-`/speckit.compound.install-hooks`.
+`/speckit-compound-install-hooks`.
 
 ---
 
@@ -32,14 +32,14 @@ The script:
 2. Resolves the gate mode — `SKC_PLANVERIFY_GATE` env, else `planverify_gate:` in `docs/compound/compound-config.yml`, default `off`
 3. If mode is not `block` → exits 0 silently — `/speckit-implement` proceeds normally
 4. If mode is `block`:
-   - No planverify report exists → exits 1 (run `/speckit.compound.planverify` first)
+   - No planverify report exists → exits 1 (run `/speckit-compound-planverify` first)
    - Latest verdict is `BLOCKED_DRIFT` → exits 1 (replan first)
    - Latest verdict is `PASS` or `REPLAN_ALLOWED` → exits 0 (proceed)
 
 If the script exits non-zero, **do not continue with `/speckit-implement`**. Relay
 the script's message to the user:
 
-> *"planverify gate is ON and the plan is not cleared. Run `/speckit.compound.planverify` (and replan if it returned BLOCKED_DRIFT) before `/speckit-implement`."*
+> *"planverify gate is ON and the plan is not cleared. Run `/speckit-compound-planverify` (and replan if it returned BLOCKED_DRIFT) before `/speckit-implement`."*
 
 ---
 

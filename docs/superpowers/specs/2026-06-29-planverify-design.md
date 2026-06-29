@@ -160,7 +160,7 @@ A `before_implement` spec-kit hook wrapping a shell script, mirroring how
 2. Reads `SKC_PLANVERIFY_GATE` (env, then `compound-config.yml`, default `off`).
 3. If not `block` → exit 0 silently (no-op). `/speckit-implement` proceeds.
 4. If `block`: find the latest `docs/intents/*.planverify.md`.
-   - Missing → exit 1: "Run /speckit.compound.planverify before implementing."
+   - Missing → exit 1: "Run /speckit-compound-planverify before implementing."
    - `verdict: BLOCKED_DRIFT` → exit 1: "Plan is BLOCKED_DRIFT — replan before implementing."
    - `PASS` or `REPLAN_ALLOWED` → exit 0.
 
@@ -174,14 +174,14 @@ the hook point exists during implementation before committing to it.)
 - **extension.yml** — register `speckit.compound.planverify` command; register the `before_implement` gate hook as `optional: true` (so it is harmless when the gate is `off`).
 
 ## Files to create / modify
-- **NEW** `commands/speckit.compound.planverify.md` — the command (mirror intentguard's structure)
+- **NEW** `commands/speckit-compound-planverify.md` — the command (mirror intentguard's structure)
 - **NEW** `scripts/bash/planverify-gate.sh` — the config-gated `before_implement` gate script
 - **EDIT** `extension.yml` — register command + before_implement hook
 - **EDIT** `README.md` — workflow + planverify-vs-intentguard
 - **EDIT** `CHANGELOG.md` — version entry
 
 ## Out of scope (deferred milestones)
-- M3 — `/speckit.compound.driftprobe` (synthetic-bad-plan test)
+- M3 — `/speckit-compound-driftprobe` (synthetic-bad-plan test)
 - M4 — dashboard live loop telemetry (event stream rows)
 
 ## Testing

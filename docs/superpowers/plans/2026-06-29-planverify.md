@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `/speckit.compound.planverify` — an independent checker that judges the proposed plan against locked intent + expectations before `/speckit-implement`, returning PASS / REPLAN_ALLOWED / BLOCKED_DRIFT.
+**Goal:** Add `/speckit-compound-planverify` — an independent checker that judges the proposed plan against locked intent + expectations before `/speckit-implement`, returning PASS / REPLAN_ALLOWED / BLOCKED_DRIFT.
 
 **Architecture:** A markdown command file mirroring `speckit.compound.intentguard.md` (sealed-briefing firewall + Tier 1/2/3 independence ladder), adapted to judge `plan.md` + gapfilled `tasks.md` instead of a git diff. Mechanical layer is *surface analysis* (plan's file surface vs intent in/out-of-scope) since nothing is built yet. A config-gated `before_implement` shell hook (default `off`) optionally blocks implement on BLOCKED_DRIFT. Docs + extension registration round it out.
 
@@ -24,8 +24,8 @@
 ### Task 1: The planverify command file
 
 **Files:**
-- Create: `commands/speckit.compound.planverify.md`
-- Reference (read, do not modify): `commands/speckit.compound.intentguard.md`, `commands/speckit.compound.gapfill.md`
+- Create: `commands/speckit-compound-planverify.md`
+- Reference (read, do not modify): `commands/speckit-compound-intentguard.md`, `commands/speckit-compound-gapfill.md`
 
 **Interfaces:**
 - Consumes: `docs/intents/{slug}.intent.md`, `docs/expectations/{slug}.expectations.md`, `specs/{slug}/plan.md`, `specs/{slug}/tasks.md`
@@ -35,7 +35,7 @@ This is a documentation/prompt artifact, not code, so it has no unit test cycle 
 
 - [ ] **Step 1: Write the command file**
 
-Create `commands/speckit.compound.planverify.md` with this exact content:
+Create `commands/speckit-compound-planverify.md` with this exact content:
 
 ````markdown
 ---
@@ -196,7 +196,7 @@ Read the gate mode (`SKC_PLANVERIFY_GATE` env, else `planverify_gate:` in
 compound-config.yml, default `off`) and record it in the report frontmatter.
 
 - **PASS**: *"Verdict: PASS (checked by {checker}, Tier {N}). Plan is in scope and complete. Safe to run `/speckit-implement`."*
-- **REPLAN_ALLOWED**: *"Verdict: REPLAN_ALLOWED (checked by {checker}). {N} items to address (see `docs/intents/{slug}.planverify.md`). Re-run `/speckit-plan` or edit the plan, then re-run `/speckit.compound.planverify`."* (planverify does not patch the plan for you.)
+- **REPLAN_ALLOWED**: *"Verdict: REPLAN_ALLOWED (checked by {checker}). {N} items to address (see `docs/intents/{slug}.planverify.md`). Re-run `/speckit-plan` or edit the plan, then re-run `/speckit-compound-planverify`."* (planverify does not patch the plan for you.)
 - **BLOCKED_DRIFT**: *"Verdict: BLOCKED_DRIFT (checked by {checker}). {N} unjustified expansions:"* — list each with the bounded alternative. If gate is `block`, `/speckit-implement` is now blocked until this resolves.
 
 ---
@@ -318,14 +318,14 @@ drift_candidates: {N}
 
 - [ ] **Step 2: Verify the file is well-formed**
 
-Run: `head -3 commands/speckit.compound.planverify.md && grep -c '^### Phase' commands/speckit.compound.planverify.md`
+Run: `head -3 commands/speckit-compound-planverify.md && grep -c '^### Phase' commands/speckit-compound-planverify.md`
 Expected: frontmatter `---` / `description:` lines, and `7` phases (Phase 0–6).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add commands/speckit.compound.planverify.md
-git commit -m "feat(planverify): add /speckit.compound.planverify command"
+git add commands/speckit-compound-planverify.md
+git commit -m "feat(planverify): add /speckit-compound-planverify command"
 ```
 
 ---
@@ -400,7 +400,7 @@ if [ -z "$LATEST" ]; then
   echo ""
   echo "  ⚠  SKC_PLANVERIFY_GATE=block but no planverify report exists."
   echo ""
-  echo "  Run /speckit.compound.planverify before /speckit-implement."
+  echo "  Run /speckit-compound-planverify before /speckit-implement."
   echo ""
   exit 1
 fi
@@ -412,7 +412,7 @@ if [ "$VERDICT" = "BLOCKED_DRIFT" ]; then
   echo "  ⛔ Plan verdict is BLOCKED_DRIFT ($LATEST)."
   echo ""
   echo "  The proposed plan drifts outside locked intent. Replan before"
-  echo "  implementing: re-run /speckit-plan, then /speckit.compound.planverify."
+  echo "  implementing: re-run /speckit-plan, then /speckit-compound-planverify."
   echo ""
   exit 1
 fi
@@ -517,7 +517,7 @@ In `extension.yml`, immediately after the `speckit.compound.gapfill` command ent
 
 ```yaml
     - name: speckit.compound.planverify
-      file: commands/speckit.compound.planverify.md
+      file: commands/speckit-compound-planverify.md
       description: "L3 PLAN validation by an INDEPENDENT checker (v0.6+): judges the proposed plan + gapfilled tasks against locked intent + expectations BEFORE implementation. Seals locked criteria + plan + tasks + surface analysis into a briefing the planner's context never touches, dispatches to a different model/context (Codex/Gemini → cross-tier Haiku → same-model fresh context). Returns PASS / REPLAN_ALLOWED / BLOCKED_DRIFT. The earlier, cheaper mirror of intentguard."
 ```
 
@@ -655,7 +655,7 @@ Create `tests/fixtures/planverify/README.md`:
 Three minimal feature snapshots whose surface analysis deterministically
 drives each verdict. To verify end-to-end, copy a fixture into a scratch
 spec-kit project as docs/intents/foo.intent.md, docs/expectations/foo.expectations.md,
-specs/foo/plan.md, specs/foo/tasks.md, then run /speckit.compound.planverify
+specs/foo/plan.md, specs/foo/tasks.md, then run /speckit-compound-planverify
 and confirm the verdict:
 
 | Fixture   | Expected verdict | Why |
@@ -696,9 +696,9 @@ Expected: line number(s) where the per-feature workflow lists gapfill → implem
 
 - [ ] **Step 2: Insert planverify into the workflow**
 
-In `README.md`, in the per-feature workflow list, insert a `/speckit.compound.planverify` line between the gapfill step and the `/speckit-implement` step. Match the existing list's exact formatting (bullets vs numbered vs code block). Add this one-line gloss next to it:
+In `README.md`, in the per-feature workflow list, insert a `/speckit-compound-planverify` line between the gapfill step and the `/speckit-implement` step. Match the existing list's exact formatting (bullets vs numbered vs code block). Add this one-line gloss next to it:
 
-> `/speckit.compound.planverify` — judge the proposed plan against locked intent before implementing (PASS / REPLAN_ALLOWED / BLOCKED_DRIFT). Independent checker; gate is opt-in via `SKC_PLANVERIFY_GATE=block`.
+> `/speckit-compound-planverify` — judge the proposed plan against locked intent before implementing (PASS / REPLAN_ALLOWED / BLOCKED_DRIFT). Independent checker; gate is opt-in via `SKC_PLANVERIFY_GATE=block`.
 
 - [ ] **Step 3: Add the planverify-vs-intentguard section**
 
@@ -732,7 +732,7 @@ In `CHANGELOG.md`, add a new entry at the top (match the existing entry format):
 
 ### Added — planverify: judge the plan before execution
 
-- **`/speckit.compound.planverify`** — the earlier, cheaper mirror of intentguard.
+- **`/speckit-compound-planverify`** — the earlier, cheaper mirror of intentguard.
   Runs after gapfill, before implement. Seals a briefing of locked intent +
   expectations + plan + gapfilled tasks + surface analysis (never the planner's
   context) and dispatches it to an independent checker via the same Tier 1/2/3
@@ -764,7 +764,7 @@ git commit -m "docs(planverify): workflow + planverify-vs-intentguard + v0.6.0 c
 ### Task 6: Verify the gate hook actually fires (the open hedge)
 
 **Files:**
-- Modify (only if the hook does NOT fire): `commands/speckit.compound.planverify.md`, `README.md`, `extension.yml`
+- Modify (only if the hook does NOT fire): `commands/speckit-compound-planverify.md`, `README.md`, `extension.yml`
 
 **Interfaces:**
 - Consumes: the registered `before_implement` hook (Task 3).
@@ -780,9 +780,9 @@ Expected: either evidence `before_implement` is a recognized hook point, or noth
 
 - [ ] **Step 2: Decide based on the evidence**
 
-- **If `before_implement` is recognized:** the registration in Task 3 is sufficient. Add to `commands/speckit.compound.planverify.md` (end of the "Position in the loop" section) one line: *"When `SKC_PLANVERIFY_GATE=block`, a `before_implement` hook enforces this automatically."* Done.
+- **If `before_implement` is recognized:** the registration in Task 3 is sufficient. Add to `commands/speckit-compound-planverify.md` (end of the "Position in the loop" section) one line: *"When `SKC_PLANVERIFY_GATE=block`, a `before_implement` hook enforces this automatically."* Done.
 - **If it is NOT recognized:** the `optional: true` registration is harmless but inert. Update the gate's documentation to a verified path:
-  - In `README.md` planverify-vs-intentguard section, change the gate sentence to: *"set `SKC_PLANVERIFY_GATE=block` and run `scripts/bash/planverify-gate.sh` before `/speckit-implement` (or wire it as a `PreToolUse` hook via `/speckit.compound.install-hooks`)."*
+  - In `README.md` planverify-vs-intentguard section, change the gate sentence to: *"set `SKC_PLANVERIFY_GATE=block` and run `scripts/bash/planverify-gate.sh` before `/speckit-implement` (or wire it as a `PreToolUse` hook via `/speckit-compound-install-hooks`)."*
   - In `extension.yml`, keep the `before_implement` entry (forward-compatible) but extend its `description:` with `"(no-op until spec-kit exposes before_implement; invoke the script manually or via PreToolUse meanwhile)"`.
 
 - [ ] **Step 3: Commit whichever path applies**

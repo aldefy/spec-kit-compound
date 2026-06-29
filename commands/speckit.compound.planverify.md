@@ -163,7 +163,7 @@ Read the gate mode (`SKC_PLANVERIFY_GATE` env, else `planverify_gate:` in
 compound-config.yml, default `off`) and record it in the report frontmatter.
 
 - **PASS**: *"Verdict: PASS (checked by {checker}, Tier {N}). Plan is in scope and complete. Safe to run `/speckit-implement`."*
-- **REPLAN_ALLOWED**: *"Verdict: REPLAN_ALLOWED (checked by {checker}). {N} items to address (see `docs/intents/{slug}.planverify.md`). Re-run `/speckit-plan` or edit the plan, then re-run `/speckit.compound.planverify`."* (planverify does not patch the plan for you.)
+- **REPLAN_ALLOWED**: *"Verdict: REPLAN_ALLOWED (checked by {checker}). {N} items to address (see `docs/intents/{slug}.planverify.md`). Re-run `/speckit-plan` or edit the plan, then re-run `/speckit-compound-planverify`."* (planverify does not patch the plan for you.)
 - **BLOCKED_DRIFT**: *"Verdict: BLOCKED_DRIFT (checked by {checker}). {N} unjustified expansions:"* — list each with the bounded alternative. If gate is `block`, `/speckit-implement` and the first source-file write are now blocked until this resolves.
 
 ---
