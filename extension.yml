@@ -43,6 +43,10 @@ provides:
       file: commands/speckit.compound.intentguard.md
       description: "L3 validation by an INDEPENDENT checker (cross-model when available, v0.5+): seals locked intent + expectations + diff into a briefing the builder's context never touches, then dispatches judgment to a different model/context (Codex/Gemini → cross-tier Haiku → same-model fresh context). Records checked_by + independence tier. Returns PASS / REVIEW NEEDED / BLOCKED."
 
+    - name: speckit.compound.planverify-gate
+      file: commands/speckit.compound.planverify-gate.md
+      description: "Gate hook (before_implement, v0.6+): config-gated (SKC_PLANVERIFY_GATE / planverify_gate:, default off). When 'block', refuses /speckit-implement if the latest planverify verdict is missing or BLOCKED_DRIFT. Shell-script wrapper mirroring require-intent. The cross-vendor PreToolUse gate is the primary path; this is the Claude+spec-kit phase-boundary half."
+
     - name: speckit.compound.require-intent
       file: commands/speckit.compound.require-intent.md
       description: "Gate hook (shell-script wrapper, v0.2.2+): blocks /speckit-specify if no intent doc exists. Forces /speckit-compound-intent to be run first."
@@ -72,7 +76,7 @@ hooks:
   # a Claude+spec-kit phase boundary; the PRIMARY cross-vendor enforcement (Claude
   # Code AND Codex CLI) is the PreToolUse hook installed via /speckit.compound.install-hooks.
   before_implement:
-    command: scripts/bash/planverify-gate.sh
+    command: speckit.compound.planverify-gate
     optional: true
     description: "Config-gated (default off): when SKC_PLANVERIFY_GATE=block, refuse /speckit-implement if the latest planverify verdict is missing or BLOCKED_DRIFT. No-op by default."
 
