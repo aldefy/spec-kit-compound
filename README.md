@@ -120,6 +120,7 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 | `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
 | `/speckit-compound-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
 | `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
+| `/speckit-compound-planverify` | After `gapfill`, before `implement` | L3 **plan** validation: judges the proposed plan + tasks vs intent scope *before* any code. Returns PASS / REPLAN_ALLOWED / BLOCKED_DRIFT. Independent checker; gate opt-in via `SKC_PLANVERIFY_GATE=block` |
 | `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
 | `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
 
@@ -131,6 +132,38 @@ Run once per project; never typed by hand during a feature.
 |---|---|---|
 | `/speckit-compound-install-hooks` | One-time per project | Installs the v0.3+ Claude Code `PreToolUse` hook that blocks Write/Edit on documented past mistakes (opt-in, see [Two-layer enforcement](#two-layer-enforcement)) |
 | `/speckit-compound-require-intent` | Auto-fires `before_specify` | Gate hook (v0.2.2+) — refuses to let `/speckit-specify` proceed if no intent doc exists. Shell-script wrapper; dispatches reliably under SpecKit's hook executor. |
+
+---
+
+## planverify vs intentguard
+
+Both use the same independent-checker firewall (sealed briefing → cross-model →
+cross-tier → same-model fresh context), but they guard different moments:
+
+| | planverify | intentguard |
+|---|---|---|
+| **When** | after gapfill, before implement | after implement |
+| **Judges** | the proposed plan + tasks | the actual git diff |
+| **Catches** | planning drift (before any code) | implementation drift (after code) |
+| **Verdicts** | PASS / REPLAN_ALLOWED / BLOCKED_DRIFT | PASS / REVIEW NEEDED / BLOCKED |
+
+planverify is the cheaper, earlier gate — catching drift before code is written
+is far cheaper than unwinding it from a diff. A `REPLAN_ALLOWED` verdict reports
+what to fix but never patches the plan for you (validator, not fixer); re-run
+`/speckit-plan` or edit, then re-run planverify.
+
+**The gate is opt-in and cross-vendor.** By default planverify is advisory
+(report only). Set `SKC_PLANVERIFY_GATE=block` (env) or `planverify_gate: block`
+(in `docs/compound/compound-config.yml`) to enforce it. Enforcement is
+belt-and-suspenders:
+
+- A **`PreToolUse` hook** (works under **both Claude Code and Codex CLI** — the
+  converged exit-2 contract) blocks the first source-file Write/Edit when the
+  latest verdict is missing or BLOCKED_DRIFT. Installed via
+  `/speckit-compound-install-hooks`. Doc and spec writes are never blocked, and
+  `COMPOUND_BYPASS=1` skips it for a session.
+- A **spec-kit `before_implement` hook** additionally gates `/speckit-implement`
+  for Claude + spec-kit users.
 
 ---
 
