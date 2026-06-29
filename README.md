@@ -1,15 +1,17 @@
 # spec-kit-compound
 
-[![Version](https://img.shields.io/badge/version-v0.3.1-228be6)](https://github.com/aldefy/spec-kit-compound/releases/tag/v0.3.1)
+[![Version](https://img.shields.io/badge/version-v0.6.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
-[![Status: smoke-tested](https://img.shields.io/badge/status-smoke--tested-c92a2a)](#project-status)
+[![Project page](https://img.shields.io/badge/project_page-planverify-D71921)](https://aldefy.github.io/spec-kit-compound/)
 
-A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engineering memory**, and **L3 intent guard validation** to the Spec-Driven Development workflow.
+> 📄 **[Read the project page → aldefy.github.io/spec-kit-compound](https://aldefy.github.io/spec-kit-compound/)** — how planverify works, each step's logic, and two real cross-model runs.
+
+A SpecKit extension that adds **intent-driven scoping** (ICE), **compound engineering memory**, **plan-drift validation** (planverify), and **L3 intent guard validation** to the Spec-Driven Development workflow.
 
 > **Positioning.** This is an *extension*, not a *harness*. We sit on top of whatever harness SpecKit drives (Claude Code, Cursor, Copilot, Gemini CLI, etc.) and inject the missing intent / expectations / compound discipline before, during, and after the standard SpecKit chain. We are not a competitor to harness frameworks like Garura — we complement them.
 
-**Contents:** [Why this exists](#why-this-exists) · [Concepts](#the-concepts) · [What you get](#what-you-get) · [Install](#install) · [Chain at a glance](#the-chain-at-a-glance) · [Two-layer enforcement](#two-layer-enforcement) · [Roadmap](#roadmap) · [Project status](#project-status)
+**Contents:** [Why this exists](#why-this-exists) · [Concepts](#the-concepts) · [What you get](#what-you-get) · [planverify vs intentguard](#planverify-vs-intentguard) · [planverify in action](#planverify-in-action--two-real-runs) · [Install](#install) · [Chain at a glance](#the-chain-at-a-glance) · [Two-layer enforcement](#two-layer-enforcement) · [Roadmap](#roadmap) · [Project status](#project-status)
 
 ---
 
