@@ -3,8 +3,8 @@ schema_version: "1.0"
 extension:
   id: compound
   name: "Spec-Kit Compound"
-  version: "0.6.0"
-  description: "Intent-driven scoping (ICE), compound engineering memory with active enforcement, plan-drift validation (planverify), and L3 intent guard validation for SpecKit's SDD workflow."
+  version: "0.7.0"
+  description: "Intent-driven scoping (ICE), compound engineering memory with active enforcement, plan-drift validation (planverify), L3 intent guard validation, and a swimlane triage dashboard for SpecKit's SDD workflow."
   author: Adit Lal
   repository: https://github.com/aldefy/spec-kit-compound
   homepage: https://github.com/aldefy/spec-kit-compound

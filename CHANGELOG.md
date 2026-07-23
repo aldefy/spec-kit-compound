@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-07-23
+
+The dashboard's master pane becomes a **triage surface**: features on a shared branch are grouped into progress-derived swimlanes, searchable and sortable, so a developer can pick up work a teammate started — the multi-developer half of the compound workflow the dashboard was missing.
+
+### Added
+
+- **Swimlane triage in the dashboard master pane.** The flat feature list is now grouped into collapsible, count-labeled lanes derived purely from pipeline stage state — **Needs attention → WIP → Review → Backlog → Done** (fixed order). A blocked-guard (`intentguard` BLOCKED) or drift (`planverify` BLOCKED_DRIFT) feature floats to **Needs attention** regardless of its other progress and keeps a visible badge in whatever lane it is shown. Lane derivation is a pure function of stage state (`_derive_lane`), zero manual upkeep.
+- **Live search, sort, and lane filters.** A controls bar adds live search over slug + goal + **compound-store note text** (store text is a *fallback* — it only widens results when nothing matches by slug/goal, so a slug search stays precise), a within-lane sort (newest / A–Z / progress, lane order fixed), and per-lane filter chips (Needs attention always shown). View state (search, sort, chips, collapse) persists to `localStorage` — surviving both the 3s poll and a dashboard restart, degrading to session-only with no error in private browsing.
+- **Card signals.** Each feature card shows an always-visible blocked/drift badge and a git **WIP dot** when its intent or expectation doc has uncommitted changes (a teammate is still drafting).
+- **Token-panel tooltips.** The TOKEN SPEND panel now has styled hover tooltips explaining Billable / Sessions / Input·Output / Cache-write / Cache-read (and why cache-read is excluded from billable).
+
+All of the above runs **client-side over the existing `/api/state` poll — no new server routes** (see the new **ADR-001**: dashboard derived views are client-side). Backend adds only derived per-feature fields (`lane` / `progress` / `doc_dirty`) and a bounded `compound.search_text` blob to the existing payload.
+
+### Fixed
+
+- **Store-text search no longer swamps a slug search.** A query word that also appeared anywhere in the compound store previously matched *every* feature (store-hit was OR'd into every card). Store text is now a fallback applied only when nothing matches by slug or goal.
+- **`doc_dirty` scan cost.** The uncommitted-doc check forked one `git status` subprocess *per feature* (~500ms at 50 features, every poll). Replaced with a single repo-wide `git status --porcelain` + set lookup (~40ms, 13× faster); behavior unchanged.
+
 ## [0.6.0] — 2026-06-29
 
 planverify lands: the loop now catches **planning** drift *before* a line of code is written — the cheaper, earlier mirror of intentguard. Same independent-checker firewall, judging the proposed plan instead of the finished diff.
