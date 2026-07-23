@@ -28,6 +28,11 @@ Run **after `gapfill`, before `implement`**. It must run after gapfill so it jud
 the **complete obligation set** (constraints + failure conditions + OOS regressions
 + edge cases), not the incomplete SpecKit task list.
 
+This ordering is **enforced**, not just advised — Phase 0 refuses to proceed if
+`tasks.md` is missing (run `/speckit-tasks`) or carries no gapfill markers (run
+`/speckit-compound-gapfill`). Running on a plan-only state would let P3c (obligation
+coverage) judge an incomplete set and silently under-check. See Phase 0.
+
 When the gate is enabled (`SKC_PLANVERIFY_GATE=block`, default `off`), enforcement is
 belt-and-suspenders across both target harnesses:
 - **PreToolUse hook** (Claude Code *and* Codex CLI) — the cross-vendor layer. Blocks
@@ -74,12 +79,30 @@ If intent or expectations is missing, stop and tell the user.
 
 ## The verification, in order
 
-### Phase 0 — Load all inputs
+### Phase 0 — Precondition gate, then load all inputs
 
-Read all four sources. Compute: number of constraints, failure conditions, OOS
-items; number of positive + edge scenarios; number of tasks.
+**First, gate the ordering. This is a hard stop — do not proceed past any failing check.**
 
-Confirm: *"Loaded intent ({Nc} constraints, {Nf} failure conditions, {No} OOS), expectations ({Np}+{Ne} scenarios), plan, and {Nt} tasks. Running surface analysis here, then dispatching plan judgment to an independent checker."*
+1. **Intent / expectations present.** If `docs/intents/{slug}.intent.md` or
+   `docs/expectations/{slug}.expectations.md` is missing → STOP:
+   *"No {intent | expectations} doc for {slug}. Run `/speckit-compound-intent` (and `/speckit-compound-expectations`) first."*
+
+2. **tasks.md present.** If `specs/{slug}/tasks.md` does not exist → STOP:
+   *"No tasks.md for {slug}. planverify judges the plan against the complete obligation set, which lives in tasks.md. Run `/speckit-tasks`, then `/speckit-compound-gapfill`, then re-run planverify."*
+
+3. **tasks.md gapfilled.** Read `specs/{slug}/tasks.md`. If it contains neither the
+   header `## Gap-filling tasks (from /speckit-compound-gapfill)` nor any
+   `<!-- gapfill: derived from ... -->` marker → STOP:
+   *"tasks.md exists but `/speckit-compound-gapfill` has not run — P3c obligation coverage would judge the incomplete SpecKit task list and under-check. Run `/speckit-compound-gapfill`, then re-run planverify."*
+   (Override only if the user explicitly confirms they want a plan-only pre-check;
+   record `gapfill: skipped (user override)` in the report frontmatter so the weaker
+   coverage is auditable.)
+
+Only once all three pass, load all four sources. Compute: number of constraints,
+failure conditions, OOS items; number of positive + edge scenarios; number of tasks
+(and how many carry gapfill markers).
+
+Confirm: *"Loaded intent ({Nc} constraints, {Nf} failure conditions, {No} OOS), expectations ({Np}+{Ne} scenarios), plan, and {Nt} tasks ({Ng} gapfilled). Running surface analysis here, then dispatching plan judgment to an independent checker."*
 
 ### Phase 1 — Surface analysis *(you run this — the mechanical layer)*
 
@@ -226,6 +249,7 @@ verdict: PASS | REPLAN_ALLOWED | BLOCKED_DRIFT
 checked_by: {e.g. "Codex (gpt-5.x)"}
 independence_tier: {1 cross-model | 2 cross-tier | 3 same-model fresh-context}
 gate_mode: {off | block}
+gapfill: {present | skipped (user override)}
 run: {YYYY-MM-DD HH:MM}
 surface_files: {N}
 drift_candidates: {N}
