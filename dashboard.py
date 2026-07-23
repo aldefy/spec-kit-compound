@@ -968,11 +968,20 @@ function persistView(){ lsSet("skc-mq",MQ); lsSet("skc-msort",MSORT); lsSet("skc
    so a query matches a feature if it hits slug, goal, OR the shared store text. */
 function groupFeatures(features, opts){
   const q=(opts.q||"").trim().toLowerCase();
-  const storeHit = q && (((STATE&&STATE.compound&&STATE.compound.search_text)||"").indexOf(q)>=0);
+  const featMatch=f=>{
+    const goal=((f.content||{}).goal||"").toLowerCase();
+    return f.slug.toLowerCase().indexOf(q)>=0 || goal.indexOf(q)>=0;
+  };
+  // Store-text search is a FALLBACK, not an OR: if any feature matches on its own
+  // slug/goal, those win and the store is ignored (a slug search stays precise).
+  // Only when nothing matches by slug/goal does a store hit widen the view — that
+  // is the "the store mentions this, go look" case (E3), without a store word that
+  // also appears in a slug swamping every result.
+  const anyFeat = q ? (features||[]).some(featMatch) : true;
+  const storeHit = q && !anyFeat && (((STATE&&STATE.compound&&STATE.compound.search_text)||"").indexOf(q)>=0);
   const match=f=>{
     if(!q) return true;
-    const goal=((f.content||{}).goal||"").toLowerCase();
-    return f.slug.toLowerCase().indexOf(q)>=0 || goal.indexOf(q)>=0 || storeHit;
+    return featMatch(f) || storeHit;
   };
   const sortFn={
     newest:(a,b)=>String(b.created||"").localeCompare(String(a.created||"")),
