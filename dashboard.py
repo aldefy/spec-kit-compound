@@ -165,6 +165,17 @@ STAGE_DESCRIPTIONS = {
     "writeback": "persist ADRs / corrections / patterns",
 }
 
+# Swimlane triage — lanes are a pure function of stage state (see _derive_lane).
+# Fixed top-to-bottom display order; the embedded JS reuses these keys/labels.
+LANES = ["attention", "wip", "review", "backlog", "done"]
+LANE_LABELS = {
+    "attention": "NEEDS ATTENTION",
+    "wip": "WIP",
+    "review": "REVIEW",
+    "backlog": "BACKLOG",
+    "done": "DONE",
+}
+
 
 def _read(path):
     try:
@@ -324,6 +335,78 @@ def _compute_states(stages):
     return stages
 
 
+def _derive_lane(stages):
+    """Pure function of stage state → one lane key. First match wins, in the
+    intent's priority order. Blocked/drift always floats to 'attention' so it can
+    never hide behind later progress. Returns a key always in LANES."""
+    ig = stages.get("intentguard", {})
+    pv = stages.get("planverify", {})
+    if ig.get("verdict") == "BLOCKED" or ig.get("state") == "blocked" \
+            or pv.get("verdict") == "BLOCKED_DRIFT" or pv.get("state") == "blocked":
+        return "attention"
+    if stages.get("writeback", {}).get("state") == "done":
+        return "done"
+    # Review: implementation finished, or a gate has run (has a doc/verdict) while
+    # the cycle is not yet closed and not blocked (blocked handled above).
+    if stages.get("implement", {}).get("state") == "done":
+        return "review"
+    if pv.get("verdict") or ig.get("verdict"):
+        return "review"
+    # WIP: any build stage has started.
+    for name in ("specify", "plan", "tasks", "implement"):
+        if stages.get(name, {}).get("state") in ("done", "current"):
+            return "wip"
+    return "backlog"
+
+
+def _feature_progress(stages):
+    """Task completion as a float in [0.0, 1.0]; 0.0 when there are no tasks."""
+    t = stages.get("tasks", {})
+    total = t.get("total", 0) or 0
+    done = t.get("done", 0) or 0
+    if total <= 0:
+        return 0.0
+    return max(0.0, min(1.0, done / total))
+
+
+def _compound_search_text(repo_root, per_file_cap=4000):
+    """Lowercased, per-file-capped concatenation of compound-store note bodies —
+    the corpus for client-side store-text search. Always returns a string; empty
+    when the store is absent. Bounded so the state payload and client search stay
+    cheap (C2/C3)."""
+    parts = []
+    for sub in ("adr", "corrections", "patterns"):
+        dpath = os.path.join(repo_root, "docs/compound", sub)
+        if not os.path.isdir(dpath):
+            continue
+        for f in sorted(glob.glob(os.path.join(dpath, "*.md"))):
+            parts.append(_read(f)[:per_file_cap])
+    return "\n".join(parts).lower()
+
+
+def _dirty_paths(repo_root):
+    """Set of repo-relative paths with uncommitted (tracked-modified or untracked)
+    changes — from a SINGLE `git status --porcelain` for the whole repo. Called once
+    per scan; per-feature dirtiness is then a cheap set lookup (see _docs_dirty),
+    instead of one subprocess per feature. Uses the never-raising _git wrapper, so a
+    non-git repo yields an empty set and the WIP dot simply degrades off."""
+    out = _git(repo_root, "status", "--porcelain")
+    dirty = set()
+    for line in out.splitlines():
+        # porcelain v1: 2 status chars, a space, then the path (or "orig -> new").
+        path = line[3:].strip()
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        if path:
+            dirty.add(path.strip('"'))
+    return dirty
+
+
+def _docs_dirty(dirty_set, paths):
+    """True if any of the repo-relative `paths` is in the pre-computed dirty set."""
+    return any(p in dirty_set for p in paths if p)
+
+
 def _store_latest_mtime(repo_root):
     """Newest mtime across the compound store (adr/corrections/patterns), or 0.0
     if empty. Lets writeback be marked done only when a store file is newer than
@@ -359,6 +442,7 @@ def scan_state(repo_root, now=None, home=None):
     features = []
     matched_dirs = set()
     store_mtime = _store_latest_mtime(repo_root)
+    dirty_set = _dirty_paths(repo_root)  # one git call for the whole scan
     for intent_path in intents:
         fname = os.path.basename(intent_path)
         slug_from_file = fname[: -len(".intent.md")]
@@ -502,11 +586,20 @@ def scan_state(repo_root, now=None, home=None):
         if _newest_store:
             stage_files["writeback"] = _newest_store
 
+        # WIP dot: intent/expectation docs with uncommitted changes = a teammate
+        # is still drafting. Both paths are repo-relative (see exp_path/intent_path).
+        dirty_paths = [os.path.relpath(intent_path, repo_root)]
+        if os.path.isfile(exp_path):
+            dirty_paths.append(os.path.relpath(exp_path, repo_root))
+
         features.append({
             "slug": slug,
             "status": fm.get("status", ""),
             "created": fm.get("created", ""),
             "spec_dir": rel_spec,
+            "lane": _derive_lane(stages),
+            "progress": _feature_progress(stages),
+            "doc_dirty": _docs_dirty(dirty_set, dirty_paths),
             "stages": stages,
             "stage_files": {k: v for k, v in stage_files.items() if v},
             "content": content,
@@ -537,7 +630,7 @@ def scan_state(repo_root, now=None, home=None):
         "stage_descriptions": STAGE_DESCRIPTIONS,
         "features": features,
         "orphan_specs": orphan_specs,
-        "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns")},
+        "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns"), "search_text": _compound_search_text(repo_root)},
         "tokens": scan_tokens(home, repo_root),
         "diff": scan_diff(repo_root),
     }
@@ -676,6 +769,35 @@ header{display:flex;justify-content:space-between;align-items:center;
 .statetxt{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.06em;text-transform:uppercase}
 .statetxt.pass{color:var(--success)} .statetxt.blocked{color:var(--accent)}
 .statetxt.review{color:var(--warning)} .statetxt.none{color:var(--t-disabled)}
+/* ── swimlane triage ── */
+.vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.controls{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;background:var(--bg);z-index:2}
+.controls #mq{width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);color:var(--t-primary);
+  font-family:var(--mono,monospace);font-size:calc(11px * var(--fs));letter-spacing:.06em;padding:7px 9px}
+.controls #mq::placeholder{color:var(--t-disabled)}
+.controls #msort{background:var(--surface);border:1px solid var(--border);color:var(--t-secondary);
+  font-family:var(--ui);font-size:calc(10px * var(--fs));letter-spacing:.08em;padding:5px 7px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{background:transparent;border:1px solid var(--border);color:var(--t-disabled);cursor:pointer;
+  font-family:var(--ui);font-size:calc(9px * var(--fs));letter-spacing:.1em;padding:4px 8px;transition:.15s}
+.chip:hover{color:var(--t-secondary);border-color:var(--t-disabled)}
+.chip.on{color:var(--t-display);border-color:var(--t-secondary);background:var(--surface)}
+.chip:focus-visible,.lanehd:focus-visible,.controls #mq:focus-visible,.controls #msort:focus-visible{outline:2px solid var(--interactive);outline-offset:1px}
+.lanehd{width:100%;box-sizing:border-box;display:flex;align-items:center;gap:9px;padding:11px 22px;
+  background:transparent;border:0;border-bottom:1px solid var(--border);cursor:pointer;text-align:left;
+  font-family:var(--ui);font-size:calc(10px * var(--fs));letter-spacing:.14em;color:var(--t-secondary)}
+.lanehd:hover{background:var(--surface)}
+.lanehd .lanetick{width:3px;height:12px;background:var(--border)}
+.lanehd.lane-attention .lanetick{background:var(--accent)} .lanehd.lane-wip .lanetick{background:var(--warning)}
+.lanehd.lane-review .lanetick{background:var(--interactive)} .lanehd.lane-done .lanetick{background:var(--success)}
+.lanehd .lanenm{flex:1}
+.lanehd .lanect{color:var(--t-disabled);font-variant-numeric:tabular-nums}
+.lanehd[aria-expanded="false"] .lanenm{color:var(--t-disabled)}
+.laneempty{padding:10px 22px}
+.nomatch{padding:16px 22px;color:var(--t-disabled);font-family:var(--ui);font-size:calc(11px * var(--fs));letter-spacing:.1em;display:flex;gap:12px;align-items:center}
+.linkbtn{background:none;border:0;color:var(--interactive);cursor:pointer;font-family:var(--ui);font-size:inherit;letter-spacing:.1em;padding:0}
+.wipdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warning);margin-right:7px;vertical-align:middle}
+.cardbadge{color:var(--accent);margin-left:7px;font-size:calc(12px * var(--fs))}
 
 /* ── detail ── */
 .detail{overflow-y:auto;padding:0 40px 96px}
@@ -830,6 +952,55 @@ const LABELS={intent:"INTENT",expectations:"EXPECT",specify:"SPEC",plan:"PLAN",t
 let STATE=null, SEL=null, SELSTAGE=null, SELDOC=null, VIEWMODE="summary";
 const docCache={}; let DOCSHOWN=null, DIFFTEXT=null;
 
+/* ── swimlane view state (persisted; survives poll + restart) ── */
+const LANE_ORDER=["attention","wip","review","backlog","done"];
+const LANE_LABELS={attention:"NEEDS ATTENTION",wip:"WIP",review:"REVIEW",backlog:"BACKLOG",done:"DONE"};
+function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+let MQ=lsGet("skc-mq","");
+let MSORT=lsGet("skc-msort","newest");
+let MCHIPS=(function(){ try{ const a=JSON.parse(lsGet("skc-mchips","")); return Array.isArray(a)?a:LANE_ORDER.slice(); }catch(e){ return LANE_ORDER.slice(); } })();
+let MCOLLAPSE=(function(){ try{ const a=JSON.parse(lsGet("skc-mcollapse","[]")); return Array.isArray(a)?a:[]; }catch(e){ return []; } })();
+function persistView(){ lsSet("skc-mq",MQ); lsSet("skc-msort",MSORT); lsSet("skc-mchips",JSON.stringify(MCHIPS)); lsSet("skc-mcollapse",JSON.stringify(MCOLLAPSE)); }
+
+/* Pure: filter + chip-visibility + within-lane sort → ordered lane groups.
+   Attention is always shown regardless of chip state. Store text is branch-wide,
+   so a query matches a feature if it hits slug, goal, OR the shared store text. */
+function groupFeatures(features, opts){
+  const q=(opts.q||"").trim().toLowerCase();
+  const featMatch=f=>{
+    const goal=((f.content||{}).goal||"").toLowerCase();
+    return f.slug.toLowerCase().indexOf(q)>=0 || goal.indexOf(q)>=0;
+  };
+  // Store-text search is a FALLBACK, not an OR: if any feature matches on its own
+  // slug/goal, those win and the store is ignored (a slug search stays precise).
+  // Only when nothing matches by slug/goal does a store hit widen the view — that
+  // is the "the store mentions this, go look" case (E3), without a store word that
+  // also appears in a slug swamping every result.
+  const anyFeat = q ? (features||[]).some(featMatch) : true;
+  const storeHit = q && !anyFeat && (((STATE&&STATE.compound&&STATE.compound.search_text)||"").indexOf(q)>=0);
+  const match=f=>{
+    if(!q) return true;
+    return featMatch(f) || storeHit;
+  };
+  const sortFn={
+    newest:(a,b)=>String(b.created||"").localeCompare(String(a.created||"")),
+    az:(a,b)=>a.slug.localeCompare(b.slug),
+    progress:(a,b)=>(b.progress||0)-(a.progress||0),
+  }[opts.sort]||((a,b)=>0);
+  const chips=opts.chips||LANE_ORDER;
+  const buckets={}; LANE_ORDER.forEach(l=>buckets[l]=[]);
+  (features||[]).forEach(f=>{ const lane=LANE_ORDER.indexOf(f.lane)>=0?f.lane:"backlog"; if(match(f)) buckets[lane].push(f); });
+  const out=[];
+  LANE_ORDER.forEach(lane=>{
+    const shown = lane==="attention" || chips.indexOf(lane)>=0;
+    if(!shown) return;
+    const items=buckets[lane].slice().sort(sortFn);
+    out.push({lane, label:LANE_LABELS[lane], items});
+  });
+  return out;
+}
+
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function human(n){return n>=1e6?(n/1e6).toFixed(2)+"M":n>=1e3?(n/1e3).toFixed(0)+"K":String(n);}
 function stageCls(st){return st.state==="done"?"done":st.state==="current"?"current":st.state==="blocked"?"blocked":"";}
@@ -847,17 +1018,55 @@ function doneCount(feat){ return STATE.stages.filter(n=>feat.stages[n].state==="
 function renderMaster(){
   const m=document.getElementById("master");
   const feats=STATE.features||[];
-  let h=`<div class="grouphd lbl">${feats.length} FEATURE${feats.length===1?"":"S"}</div>`;
-  if(!feats.length) h+=`<div class="feat" style="cursor:default"><div class="name lbl">RUN /SPECKIT-COMPOUND-INTENT</div></div>`;
-  feats.forEach(f=>{
-    const [ck,ctxt]=guardChip(f);
-    const bars=STATE.stages.map(n=>`<i class="${stageCls(f.stages[n])}"></i>`).join("");
-    const t=f.stages.tasks;
-    h+=`<div class="feat ${f.slug===SEL?'sel':''}" data-slug="${esc(f.slug)}">
-      <div class="name">${esc(f.slug)}</div>
-      <div class="minibar">${bars}</div>
-      <div class="meta"><span class="statetxt ${ck}">${ctxt}</span>${t.total>0?`<span class="lbl lbl-dim">${t.done}/${t.total} TASKS</span>`:''}</div>
-    </div>`;
+
+  // Controls bar: labeled search, sort select, lane filter chips. (FR-004/005/006, C6)
+  let h=`<div class="controls">
+    <label class="ctrl-search"><span class="vh">Search features</span>
+      <input id="mq" type="search" placeholder="SEARCH SLUG · GOAL · STORE" value="${esc(MQ)}" autocomplete="off" aria-label="Search features"></label>
+    <label class="ctrl-sort"><span class="vh">Sort within lane</span>
+      <select id="msort" aria-label="Sort within lane">
+        <option value="newest"${MSORT==="newest"?" selected":""}>NEWEST</option>
+        <option value="az"${MSORT==="az"?" selected":""}>A–Z</option>
+        <option value="progress"${MSORT==="progress"?" selected":""}>PROGRESS</option>
+      </select></label>
+    <div class="chips" role="group" aria-label="Filter lanes">
+      ${LANE_ORDER.filter(l=>l!=="attention").map(l=>{
+        const on=MCHIPS.indexOf(l)>=0;
+        return `<button class="chip${on?" on":""}" data-chip="${l}" aria-pressed="${on?"true":"false"}">${LANE_LABELS[l]}</button>`;
+      }).join("")}
+    </div>
+  </div>`;
+
+  if(!feats.length){
+    h+=`<div class="feat" style="cursor:default"><div class="name lbl">RUN /SPECKIT-COMPOUND-INTENT</div></div>`;
+    m.innerHTML=h; wireControls(m); return;
+  }
+
+  const groups=groupFeatures(feats,{q:MQ,sort:MSORT,chips:MCHIPS});
+  const anyVisible=groups.some(g=>g.items.length);
+  if(MQ.trim() && !anyVisible){
+    h+=`<div class="nomatch">NO MATCHES<button id="clearq" class="linkbtn">CLEAR</button></div>`;
+  }
+  groups.forEach(g=>{
+    const collapsed=MCOLLAPSE.indexOf(g.lane)>=0;
+    h+=`<button class="lanehd lane-${g.lane}" data-lane="${g.lane}" aria-expanded="${collapsed?"false":"true"}">
+      <span class="lanetick"></span><span class="lanenm">${g.label}</span><span class="lanect">${g.items.length}</span></button>`;
+    if(collapsed) return;
+    if(!g.items.length){ h+=`<div class="laneempty lbl lbl-dim">—</div>`; return; }
+    g.items.forEach(f=>{
+      const [ck,ctxt]=guardChip(f);
+      const bars=STATE.stages.map(n=>`<i class="${stageCls(f.stages[n])}"></i>`).join("");
+      const t=f.stages.tasks;
+      const blocked = f.stages.intentguard.verdict==="BLOCKED" || f.stages.intentguard.state==="blocked"
+                    || f.stages.planverify.verdict==="BLOCKED_DRIFT" || f.stages.planverify.state==="blocked";
+      const badge = blocked?`<span class="cardbadge" title="Blocked / drift" aria-label="blocked or drift">⚠</span>`:"";
+      const dot = f.doc_dirty?`<span class="wipdot" title="Uncommitted intent/expectation doc" aria-label="in progress, uncommitted doc"></span>`:"";
+      h+=`<div class="feat ${f.slug===SEL?'sel':''}" data-slug="${esc(f.slug)}">
+        <div class="name">${dot}${esc(f.slug)}${badge}</div>
+        <div class="minibar">${bars}</div>
+        <div class="meta"><span class="statetxt ${ck}">${ctxt}</span>${t.total>0?`<span class="lbl lbl-dim">${t.done}/${t.total} TASKS</span>`:''}</div>
+      </div>`;
+    });
   });
   if((STATE.orphan_specs||[]).length){
     h+=`<div class="grouphd lbl lbl-dim">ORPHAN SPECS</div>`;
@@ -867,9 +1076,32 @@ function renderMaster(){
     });
   }
   m.innerHTML=h;
+  wireControls(m);
   m.querySelectorAll(".feat[data-slug]").forEach(el=>{
     el.onclick=()=>{ SEL=el.dataset.slug; SELSTAGE=null; renderMaster(); renderDetail(); };
   });
+}
+
+/* Wire the controls bar; preserves focus/caret on the live-search input across
+   the re-render so typing is uninterrupted (FR-004, E2). */
+function wireControls(m){
+  const q=m.querySelector("#mq");
+  if(q){
+    q.oninput=()=>{ MQ=q.value; persistView(); const pos=q.selectionStart; renderMaster();
+      const nq=document.getElementById("mq"); if(nq){ nq.focus(); try{ nq.setSelectionRange(pos,pos); }catch(e){} } };
+  }
+  const s=m.querySelector("#msort");
+  if(s) s.onchange=()=>{ MSORT=s.value; persistView(); renderMaster(); };
+  m.querySelectorAll(".chip[data-chip]").forEach(c=>{
+    c.onclick=()=>{ const l=c.dataset.chip; const i=MCHIPS.indexOf(l);
+      if(i>=0) MCHIPS.splice(i,1); else MCHIPS.push(l); persistView(); renderMaster(); };
+  });
+  m.querySelectorAll(".lanehd[data-lane]").forEach(hd=>{
+    hd.onclick=()=>{ const l=hd.dataset.lane; const i=MCOLLAPSE.indexOf(l);
+      if(i>=0) MCOLLAPSE.splice(i,1); else MCOLLAPSE.push(l); persistView(); renderMaster(); };
+  });
+  const cq=m.querySelector("#clearq");
+  if(cq) cq.onclick=()=>{ MQ=""; persistView(); renderMaster(); const nq=document.getElementById("mq"); if(nq) nq.focus(); };
 }
 
 /* ── detail ── */

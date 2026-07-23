@@ -61,7 +61,7 @@ class TestScanState(unittest.TestCase):
         self.assertEqual(state["features"], [])
         self.assertEqual(state["orphan_specs"], [])
         self.assertEqual(state["stages"], d.STAGES)
-        self.assertEqual(state["compound"], {"adr": [], "corrections": [], "patterns": []})
+        self.assertEqual(state["compound"], {"adr": [], "corrections": [], "patterns": [], "search_text": ""})
 
     def test_intent_only_feature(self):
         _write(os.path.join(self.root, "docs/intents/foo.intent.md"),
@@ -495,6 +495,131 @@ class TestFindRepoRoot(unittest.TestCase):
         start = os.path.join(self.tmp, "loose")
         os.makedirs(start, exist_ok=True)
         self.assertEqual(d.find_repo_root(start), os.path.abspath(start))
+
+
+def _stages(**overrides):
+    """Build a stages dict shaped like scan_state's: every stage pending by
+    default; override individual stages with a state string, or (state, verdict)
+    for the gate stages. Mirrors the real dict so _derive_lane sees real input."""
+    st = {name: {"state": "pending"} for name in d.STAGES}
+    st["intent"]["state"] = "done"  # intent always exists for a feature
+    for name, val in overrides.items():
+        if isinstance(val, tuple):
+            st[name] = {"state": val[0], "verdict": val[1]}
+        else:
+            st[name]["state"] = val
+    st.setdefault("intentguard", {"state": "pending"}).setdefault("verdict", None)
+    st.setdefault("planverify", {"state": "pending"}).setdefault("verdict", None)
+    return st
+
+
+class TestDeriveLane(unittest.TestCase):
+    def test_backlog_intent_only(self):
+        self.assertEqual(d._derive_lane(_stages()), "backlog")
+
+    def test_backlog_with_expectations(self):
+        self.assertEqual(d._derive_lane(_stages(expectations="done")), "backlog")
+
+    def test_wip_when_spec_started(self):
+        self.assertEqual(d._derive_lane(_stages(specify="done")), "wip")
+
+    def test_wip_when_tasks_current(self):
+        self.assertEqual(d._derive_lane(_stages(specify="done", plan="done", tasks="current")), "wip")
+
+    def test_review_when_implement_done(self):
+        st = _stages(specify="done", plan="done", tasks="done", implement="done")
+        self.assertEqual(d._derive_lane(st), "review")
+
+    def test_review_when_gate_present_passing(self):
+        # A planverify verdict is present (gate ran) but nothing blocked/closed.
+        st = _stages(specify="done", plan="done", planverify=("done", "PASS"))
+        self.assertEqual(d._derive_lane(st), "review")
+
+    def test_done_when_writeback_done(self):
+        st = _stages(specify="done", plan="done", tasks="done",
+                     implement="done", writeback="done")
+        self.assertEqual(d._derive_lane(st), "done")
+
+    def test_attention_overrides_on_intentguard_blocked(self):
+        # Even a fully-written, writeback-done feature floats to attention if blocked.
+        st = _stages(specify="done", plan="done", tasks="done", implement="done",
+                     writeback="done", intentguard=("blocked", "BLOCKED"))
+        self.assertEqual(d._derive_lane(st), "attention")
+
+    def test_attention_overrides_on_planverify_drift(self):
+        st = _stages(specify="done", plan="done",
+                     planverify=("blocked", "BLOCKED_DRIFT"))
+        self.assertEqual(d._derive_lane(st), "attention")
+
+    def test_lane_is_always_a_known_key(self):
+        self.assertIn(d._derive_lane(_stages()), d.LANES)
+
+
+class TestFeatureProgress(unittest.TestCase):
+    def test_zero_when_no_tasks(self):
+        st = _stages()
+        st["tasks"] = {"state": "pending", "done": 0, "total": 0}
+        self.assertEqual(d._feature_progress(st), 0.0)
+
+    def test_ratio(self):
+        st = _stages()
+        st["tasks"] = {"state": "current", "done": 3, "total": 12}
+        self.assertAlmostEqual(d._feature_progress(st), 0.25)
+
+    def test_clamped_and_full(self):
+        st = _stages()
+        st["tasks"] = {"state": "done", "done": 10, "total": 10}
+        self.assertEqual(d._feature_progress(st), 1.0)
+
+    def test_missing_tasks_counts_is_zero(self):
+        self.assertEqual(d._feature_progress(_stages()), 0.0)
+
+
+class TestScanStateSwimlaneFields(unittest.TestCase):
+    def test_features_carry_lane_progress_doc_dirty(self):
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        state = d.scan_state(repo)
+        self.assertTrue(state["features"])
+        for f in state["features"]:
+            self.assertIn(f["lane"], d.LANES)
+            self.assertIsInstance(f["progress"], float)
+            self.assertGreaterEqual(f["progress"], 0.0)
+            self.assertLessEqual(f["progress"], 1.0)
+            self.assertIsInstance(f["doc_dirty"], bool)
+
+    def test_doc_dirty_false_and_no_raise_when_git_unavailable(self):
+        # T017: monkeypatch _git to simulate "not a repo / git missing".
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        orig = d._git
+        d._git = lambda *a, **k: ""
+        try:
+            state = d.scan_state(repo)
+            for f in state["features"]:
+                self.assertFalse(f["doc_dirty"])
+        finally:
+            d._git = orig
+
+    def test_compound_search_text_is_a_string(self):
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        state = d.scan_state(repo)
+        self.assertIsInstance(state["compound"]["search_text"], str)
+
+
+class TestPerf(unittest.TestCase):
+    def test_50_features_scan_is_cheap(self):
+        # T027: build a synthetic tree of 50 intents and assert scan_state stays
+        # well under a generous budget (proxy for the client render staying fast).
+        import tempfile, time
+        tmp = tempfile.mkdtemp()
+        os.makedirs(os.path.join(tmp, "docs", "intents"))
+        for i in range(50):
+            with open(os.path.join(tmp, "docs", "intents", f"feat-{i}.intent.md"), "w") as fh:
+                fh.write(f"---\nslug: feat-{i}\nstatus: active\n---\n# Intent: goal {i}\n")
+        t0 = time.perf_counter()
+        state = d.scan_state(tmp)
+        dt = time.perf_counter() - t0
+        self.assertEqual(len(state["features"]), 50)
+        self.assertLess(dt, 2.0, f"scan_state on 50 features took {dt:.3f}s")
 
 
 if __name__ == "__main__":
