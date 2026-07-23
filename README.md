@@ -1,6 +1,6 @@
 # spec-kit-compound
 
-[![Version](https://img.shields.io/badge/version-v0.6.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
+[![Version](https://img.shields.io/badge/version-v0.7.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
 [![Project page](https://img.shields.io/badge/project_page-live-D71921)](https://aldefy.github.io/spec-kit-compound/)

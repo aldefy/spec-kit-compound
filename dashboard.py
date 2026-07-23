@@ -905,6 +905,15 @@ header{display:flex;justify-content:space-between;align-items:center;
 .statrow .k{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.06em;text-transform:uppercase;color:var(--t-secondary)}
 .statrow .v{font-family:var(--mono);font-size:calc(13px * var(--fs));color:var(--t-primary)}
 .statrow .v.dim{color:var(--t-disabled)}
+/* styled hover tooltip (replaces native title=): instant, theme-matched */
+.tip{position:relative}
+.tip[data-tip]:hover::after{
+  content:attr(data-tip);position:absolute;left:0;right:0;bottom:calc(100% + 6px);z-index:20;
+  background:var(--surface);color:var(--t-primary);border:1px solid var(--border-vis);
+  padding:9px 11px;border-radius:6px;font-family:var(--ui);font-size:calc(11px * var(--fs));
+  line-height:1.5;letter-spacing:.01em;text-transform:none;white-space:normal;
+  box-shadow:0 8px 28px rgba(0,0,0,.55);pointer-events:none}
+.tiphd{cursor:help}
 .storelist{font-family:var(--mono);font-size:calc(11px * var(--fs));color:var(--t-disabled);line-height:1.7;margin-top:8px;word-break:break-word;display:flex;flex-wrap:wrap;gap:6px}
 .storedoc{font-family:var(--mono);font-size:calc(11px * var(--fs));letter-spacing:.04em;background:transparent;color:var(--t-secondary);border:1px solid var(--border-vis);border-radius:5px;padding:4px 9px;cursor:pointer;transition:.15s ease-out}
 .storedoc:hover{color:var(--t-display);border-color:var(--t-display)}
@@ -1355,14 +1364,14 @@ function statsHtml(){
   const sitems=[...cp.adr.map(n=>sdoc('adr',n)),...cp.corrections.map(n=>sdoc('corrections',n)),...cp.patterns.map(n=>sdoc('patterns',n))];
   let store=`<div class="statgroup"><div class="lbl" style="margin-bottom:6px">COMPOUND STORE</div>
     <div class="storelist">${sitems.length?sitems.join(""):"EMPTY — GROWS FROM YOUR FIRST WRITEBACK"}</div></div>`;
-  let toks=`<div class="statgroup"><div class="lbl" style="margin-bottom:6px">TOKEN SPEND · THIS PROJECT</div>`;
+  let toks=`<div class="statgroup"><div class="lbl tiphd tip" style="margin-bottom:6px" data-tip="Token usage summed from this project's Claude Code session logs (~/.claude/projects). A token count, not a dollar bill.">TOKEN SPEND · THIS PROJECT</div>`;
   if(tok.available){
-    toks+=`<div class="statrow"><span class="k">Billable</span><span class="v">${human(tok.total.billable)}</span></div>
-      <div class="statrow"><span class="k">Sessions</span><span class="v">${tok.sessions.length}</span></div>
-      <div class="statrow"><span class="k">Input · Output</span><span class="v">${human(tok.total.input)} · ${human(tok.total.output)}</span></div>
-      <div class="statrow"><span class="k">Cache write</span><span class="v">${human(tok.total.cache_creation)}</span></div>
-      <div class="statrow"><span class="k">Cache read</span><span class="v dim">${human(tok.total.cache_read)} · excluded</span></div>`;
-  }else{ toks+=`<div class="statrow"><span class="k">Transcripts</span><span class="v dim">NONE</span></div>`; }
+    toks+=`<div class="statrow tip" data-tip="input + output + cache-write, summed across all sessions. Cache-read is excluded (it is ~10x cheaper and would dwarf the total). A proxy for paid work, not exact dollars."><span class="k">Billable</span><span class="v">${human(tok.total.billable)}</span></div>
+      <div class="statrow tip" data-tip="Distinct Claude Code conversations (sessionId) that touched this project — one .jsonl transcript each."><span class="k">Sessions</span><span class="v">${tok.sessions.length}</span></div>
+      <div class="statrow tip" data-tip="Input = fresh (uncached) tokens sent to the model — prompts, tool results, first-read files. Output = tokens the model generated (replies, code, tool calls). Output often exceeds input here because repeated context is served from cache, not re-sent as input."><span class="k">Input · Output</span><span class="v">${human(tok.total.input)} · ${human(tok.total.output)}</span></div>
+      <div class="statrow tip" data-tip="Tokens written INTO the prompt cache (~1.25x input rate) so stable context isn't re-billed every turn. Counted in Billable."><span class="k">Cache write</span><span class="v">${human(tok.total.cache_creation)}</span></div>
+      <div class="statrow tip" data-tip="Tokens served FROM cache on later turns (~0.1x rate). Excluded from Billable so this large-but-cheap number doesn't distort cost; the ratio to Billable shows how hard the cache is working."><span class="k">Cache read</span><span class="v dim">${human(tok.total.cache_read)} · excluded</span></div>`;
+  }else{ toks+=`<div class="statrow tip" data-tip="No Claude Code session logs found for this project under ~/.claude/projects."><span class="k">Transcripts</span><span class="v dim">NONE</span></div>`; }
   toks+=`</div>`;
   return `<div class="stats">${store}${toks}</div>
     <div class="footnote">READ-ONLY · NO DEPENDENCIES · 127.0.0.1 · NEVER RUNS CHAIN COMMANDS</div>`;
