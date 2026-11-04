@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>spec-kit-compound</title>
-<meta name="description" content="A SpecKit extension: intent-driven scoping, compound engineering memory, and cross-model validation of the plan and the diff. An instrument panel for keeping AI coding agents in scope.">
+<meta name="description" content="A SpecKit extension: intent-driven scoping, compound engineering memory that turns lessons into tests, and cross-model validation of the plan and the diff. An instrument panel for keeping AI coding agents in scope.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -201,6 +201,17 @@ footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing
 <section id="memory">
   <div class="sechd"><span class="n">02</span><h2>Compound engineering memory</h2></div>
   <p class="lead">A local store of <em>ADRs, corrections, and patterns</em> — decisions made, mistakes hit, fixes that worked. It persists across features, so learnings carry forward instead of evaporating with the context window. Committed to git: a teammate's LLM reads the same hard-won context. Every feature writes back what it learned — the system compounds.</p>
+  <p class="lead" style="margin-top:16px">But a note is the weakest way to keep a lesson: an agent can read it and still ignore it. Since v0.8, writeback puts each lesson on the <em>strongest rung that fits</em>, and a markdown doc is the last resort. Every correction ships a guard or writes down why it can't have one.</p>
+  <div class="scroll" style="margin-top:22px"><table>
+    <thead><tr><th>Rung</th><th>Lesson becomes</th><th>Catches</th></tr></thead>
+    <tbody>
+      <tr class="gate"><td>1</td><td>A test or lint rule in your project, shown failing on the mistake</td><td class="why">Everyone, in CI</td></tr>
+      <tr><td>2</td><td>A hook-enforced correction (path glob + regex)</td><td class="why">The agent, before the Write lands</td></tr>
+      <tr><td>3</td><td>One line in the constitution / AGENTS.md / CLAUDE.md</td><td class="why">Any agent reading standards</td></tr>
+      <tr><td>4</td><td>A store doc: ADR, pattern, context-only correction</td><td class="why">Agents that load the store</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lead" style="margin-top:16px">Writeback also <em>refreshes</em> the store. A read-only scan flags superseded ADRs, duplicate or unguarded corrections, rules that fire on code you already ship, and guards that have disappeared; you approve each archive or fix. On a real KMP app the scan went from 8 findings to 1, a known violation kept on purpose.</p>
 </section>
 
 <!-- THE CHAIN -->
@@ -233,7 +244,7 @@ footer{padding:44px 0 80px;font-family:var(--mono);font-size:11px;letter-spacing
       <tr class="gate"><td>PLANVERIFY</td><td>Independent cross-model checker judges the plan</td><td class="why">Catch drift before any code — the cheapest catch</td></tr>
       <tr><td>IMPLEMENT</td><td>Build</td><td class="why">Only an approved plan reaches here</td></tr>
       <tr class="gate"><td>INTENTGUARD</td><td>Same firewall judges the git diff</td><td class="why">Confirm the executor stayed in scope</td></tr>
-      <tr><td>WRITEBACK</td><td>Persist new lessons to the store</td><td class="why">The next feature starts smarter</td></tr>
+      <tr><td>WRITEBACK</td><td>Encode each lesson on the strongest rung (test → hook → standards → doc), then refresh the store</td><td class="why">The next feature starts smarter, and the store doesn't rot</td></tr>
     </tbody>
   </table></div>
 </section>
