@@ -624,3 +624,74 @@ class TestPerf(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLiteFeature(unittest.TestCase):
+    """v0.9 lite path: size: lite intents skip expectations..planverify."""
+
+    SKIPPED = ("expectations", "specify", "plan", "tasks", "gapfill", "planverify")
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.root, "docs/compound/corrections"))
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _intent(self, size="lite"):
+        _write(os.path.join(self.root, "docs/intents/fix-typo.intent.md"),
+               f"---\nslug: fix-typo\nstatus: active\nsize: {size}\n---\n# Intent: fix typo\n")
+
+    def _feature(self):
+        return d.scan_state(self.root, include_heavy=False)["features"][0]
+
+    def test_lite_skips_heavy_stages_and_implement_is_current(self):
+        self._intent()
+        f = self._feature()
+        self.assertEqual(f["size"], "lite")
+        for s in self.SKIPPED:
+            self.assertEqual(f["stages"][s]["state"], "skipped", s)
+        self.assertEqual(f["stages"]["implement"]["state"], "current")
+        self.assertEqual(f["lane"], "wip")
+
+    def test_lite_guard_marks_implement_done_and_review(self):
+        self._intent()
+        _write(os.path.join(self.root, "docs/intents/fix-typo.intentguard.md"), "verdict: PASS\n")
+        f = self._feature()
+        self.assertEqual(f["stages"]["implement"]["state"], "done")
+        self.assertEqual(f["stages"]["writeback"]["state"], "current")
+        self.assertEqual(f["lane"], "review")
+
+    def test_lite_writeback_done_when_store_newer_than_intent(self):
+        self._intent()
+        _write(os.path.join(self.root, "docs/intents/fix-typo.intentguard.md"), "verdict: PASS\n")
+        store = os.path.join(self.root, "docs/compound/corrections/x.md")
+        _write(store, "# x\n")
+        later = os.path.getmtime(os.path.join(self.root, "docs/intents/fix-typo.intent.md")) + 10
+        os.utime(store, (later, later))
+        self.assertEqual(self._feature()["lane"], "done")
+
+    def test_lite_writeback_done_after_intent_marked_completed(self):
+        # writeback edits the intent LAST (status: completed), so the intent ends
+        # up newer than the store; completion must still read as done.
+        _write(os.path.join(self.root, "docs/intents/fix-typo.intentguard.md"), "verdict: PASS\n")
+        _write(os.path.join(self.root, "docs/compound/corrections/x.md"), "# x\n")
+        _write(os.path.join(self.root, "docs/intents/fix-typo.intent.md"),
+               "---\nslug: fix-typo\nstatus: completed\nsize: lite\n---\n# Intent: fix typo\n")
+        later = os.path.getmtime(os.path.join(self.root, "docs/compound/corrections/x.md")) + 10
+        os.utime(os.path.join(self.root, "docs/intents/fix-typo.intent.md"), (later, later))
+        f = self._feature()
+        self.assertEqual(f["stages"]["writeback"]["state"], "done")
+        self.assertEqual(f["lane"], "done")
+
+    def test_full_feature_unchanged(self):
+        self._intent(size="full")
+        f = self._feature()
+        self.assertEqual(f["size"], "full")
+        self.assertEqual(f["stages"]["expectations"]["state"], "current")
+
+    def test_include_heavy_false_skips_tokens_and_diff(self):
+        self._intent()
+        st = d.scan_state(self.root, include_heavy=False)
+        self.assertNotIn("tokens", st)
+        self.assertNotIn("diff", st)

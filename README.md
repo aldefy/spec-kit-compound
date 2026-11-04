@@ -1,6 +1,6 @@
 # spec-kit-compound
 
-[![Version](https://img.shields.io/badge/version-v0.8.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
+[![Version](https://img.shields.io/badge/version-v0.9.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
 [![Project page](https://img.shields.io/badge/project_page-live-D71921)](https://aldefy.github.io/spec-kit-compound/)
@@ -125,12 +125,13 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 
 ## What you get
 
-### Six commands you type during a feature
+### Commands you type during a feature
 
 | Command | Phase | Adds |
 |---|---|---|
+| `/speckit-compound-help` | Any time | Names the next command for each active feature, blocked ones first (v0.9) |
 | `/speckit-compound-load` | Start of feature | Reads committed ADRs / corrections / patterns into agent context |
-| `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass |
+| `/speckit-compound-intent` | Before `specify` | Interview-driven goal + constraints + failure conditions; refuses to terminate until quality tests pass. `lite` for small work: ≤3 files, no new dependency / contract / module; skips expectations → planverify (v0.9) |
 | `/speckit-compound-expectations` | After intent, before `specify` | Success scenarios in a separate file (validator-only — soft compartmentation against reward-hacking) |
 | `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
 | `/speckit-compound-planverify` | After `gapfill`, before `implement` | L3 **plan** validation: judges the proposed plan + tasks vs intent scope *before* any code. Returns PASS / REPLAN_ALLOWED / BLOCKED_DRIFT. Independent checker; gate opt-in via `SKC_PLANVERIFY_GATE=block` |
@@ -345,6 +346,14 @@ Then run the chain top to bottom:
 load → intent → expectations → [specify, plan, tasks] → gapfill → implement → intentguard → writeback
 ```
 
+Small work (v0.9) takes the **lite path**: `/speckit-compound-intent lite` asks four size questions, and if all pass the chain shortens to:
+
+```
+load → intent (lite) → implement directly → intentguard → writeback
+```
+
+Lost? `/speckit-compound-help` names the next command for every active feature.
+
 Three of our commands wrap **before** SpecKit (load, intent, expectations), one runs **mid** (gapfill, between tasks and implement), two run **after** (intentguard, writeback). SpecKit's vanilla chain is unchanged — only three commands are user-typed; the rest auto-chain (see [How the chain actually dispatches](#how-the-chain-actually-dispatches)).
 
 ### How the chain actually dispatches
@@ -421,12 +430,9 @@ See [`docs/compound/CORRECTIONS-SCHEMA.md`](docs/compound/CORRECTIONS-SCHEMA.md)
 
 Tracked direction beyond v0.3.
 
-### v0.9 — guidance and a small-work path
+### Shipped in v0.9
 
-More ports from Every's Compound Engineering 3.35.0:
-
-- **`/speckit-compound-help`** — reads the stage state the dashboard already derives (intent, expectations, tasks, planverify and intentguard verdicts) and names the next command to run.
-- **Lite path for small work** — a short intent with no expectations, gapfill, or planverify, still followed by intentguard and writeback. Needs a size rule and a matching bypass in `require-intent`.
+`/speckit-compound-help` and the lite path (`/speckit-compound-intent lite`), both ported from Every's Compound Engineering 3.35.0. See the CHANGELOG.
 
 ### v0.3.1+ — sibling tool-level gates
 

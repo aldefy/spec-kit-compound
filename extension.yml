@@ -3,7 +3,7 @@ schema_version: "1.0"
 extension:
   id: compound
   name: "Spec-Kit Compound"
-  version: "0.8.0"
+  version: "0.9.0"
   description: "Intent-driven scoping (ICE), compound engineering memory with an encoding ladder (tests > hook corrections > standards > docs), store refresh, and active enforcement, plan-drift validation (planverify), L3 intent guard validation, and a swimlane triage dashboard for SpecKit's SDD workflow."
   author: Adit Lal
   repository: https://github.com/aldefy/spec-kit-compound
@@ -17,7 +17,11 @@ provides:
   commands:
     - name: speckit.compound.intent
       file: commands/speckit.compound.intent.md
-      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until G1-G5, C1-C5, F1-F4 all pass. Hands off to /speckit-compound-expectations on completion."
+      description: "Interview-driven intent capture: goal, constraints, failure conditions. Refuses to terminate until G1-G5, C1-C5, F1-F4 all pass. Hands off to /speckit-compound-expectations on completion. 'lite' (v0.9+): a short interview for small work (≤3 files, no new dependency/contract/module) that skips expectations, spec, plan, tasks, gapfill and planverify."
+
+    - name: speckit.compound.help
+      file: commands/speckit.compound.help.md
+      description: "What to run next (v0.9+): reads every active feature's stage state and the store's refresh findings, then names the next command, blocked features first. Read-only; same stage logic as the dashboard."
 
     - name: speckit.compound.expectations
       file: commands/speckit.compound.expectations.md

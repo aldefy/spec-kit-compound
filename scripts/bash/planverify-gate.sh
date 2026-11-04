@@ -44,6 +44,11 @@ if [ "$GATE" != "block" ]; then
   exit 0
 fi
 
+# v0.9: a lite feature has no plan to verify; let it through.
+if [ "$(pv_active_lite "$ROOT")" = "lite" ]; then
+  exit 0
+fi
+
 VERDICT="$(pv_latest_verdict "$ROOT")"
 
 if [ -z "$VERDICT" ]; then

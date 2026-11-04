@@ -48,7 +48,9 @@ Read it from the `SKC_CHECKER` env var, or a `checker:` line in `docs/compound/c
 3. **Tasks file** at `specs/{slug}/tasks.md` — including gapfill additions
 4. **Git diff** of the current branch vs the merge base — use `git diff $(git merge-base HEAD main)...HEAD`
 
-If the intent or expectations doc is missing, stop and tell the user.
+If the intent doc is missing, stop and tell the user. If the expectations doc is missing, stop and tell the user, **unless** the intent's frontmatter has `size: lite` (v0.9+).
+
+**Lite intents.** A `size: lite` feature has no expectations doc and no `tasks.md` by design. Seal the briefing with the intent and the diff only, judge scope, constraints and failure conditions as usual, and record `path: lite` in the report. Add one mechanical check of your own: if the diff touches **more than 3 files**, or adds a dependency, or changes a schema / API contract / persisted format, the verdict is at least **REVIEW NEEDED** with the finding *"change outgrew the lite path"*: the work skipped the gates the full path would have run.
 
 ## Output you produce
 

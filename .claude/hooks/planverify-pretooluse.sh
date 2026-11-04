@@ -79,6 +79,11 @@ case "$FILE_REL" in
 esac
 
 # This is a source-file write under block mode. Check the verdict.
+# v0.9: a lite feature has no plan to verify; let it through.
+if [ "$(pv_active_lite "$ROOT")" = "lite" ]; then
+  exit 0
+fi
+
 VERDICT="$(pv_latest_verdict "$ROOT")"
 
 if [ -z "$VERDICT" ]; then

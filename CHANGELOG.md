@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-11-04
+
+Two more ports from Every's Compound Engineering 3.35.0: a command that tells you what to run next (`/ce-help`), and a short path for small work (`/lfg` without a plan file).
+
+### Added
+
+- **`/speckit-compound-help`.** Names the next command for every active feature, blocked ones first (intentguard BLOCKED, planverify BLOCKED_DRIFT), and suggests `writeback refresh` when the store has findings. Backed by `scripts/compound_next.py`, which reuses the dashboard's stage logic so the two never disagree. Read-only, ~0.3s on a 57-feature project; text output shows five features (`--all` for every one), `--json` for tools.
+- **Lite path: `/speckit-compound-intent lite`.** Four eligibility questions (3 files or fewer, no new dependency, no schema / API contract / persisted-format change, no new module or screen); any "no" falls back to the full interview. A lite intent still passes G1–G5 and needs at least one constraint and one failure condition, and is written with `size: lite`. It skips expectations, specify, plan, tasks, gapfill and planverify: implement directly, then intentguard, then writeback.
+- **Lite support across the chain.** Both planverify gates (spec-kit `before_implement` and the cross-vendor PreToolUse hook) let the newest *active* lite intent through; a completed lite intent, or a newer active full one, does not unlock them. Intentguard judges a lite diff against the intent alone and returns at least REVIEW NEEDED if the diff outgrew the lite rules. The dashboard shows skipped stages struck through and a LITE badge, with lanes and progress computed correctly.
+- **`scan_state(include_heavy=False)`** in `dashboard.py` skips token and diff scans for callers that only need stage state.
+- **Tests.** `tests/test_next.py` (10), `TestLiteFeature` in `tests/test_dashboard.py` (7), and 4 lite cases in `tests/planverify-gate.test.sh`; `validate.sh` now runs the gate suite.
+
 ## [0.8.0] — 2026-11-04
 
 Writeback stops treating every lesson as a markdown note. Each lesson is encoded at the strongest level that fits, and every writeback ends by pruning the store. Ported from Every's Compound Engineering 3.35.0 (`ce-compound` choosing how to encode a learning, and `ce-compound-refresh` folded into it).
