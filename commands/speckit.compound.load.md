@@ -24,7 +24,9 @@ docs/compound/
 
 Then tell the user: *"Compound store initialized at `docs/compound/`. Empty for now — it will fill over the next few features via `/speckit-compound-writeback`."*
 
-**2. Read all files** in `docs/compound/adr/`, `docs/compound/corrections/`, and `docs/compound/patterns/`.
+**2. Read all files** in `docs/compound/adr/`, `docs/compound/corrections/`, and `docs/compound/patterns/`, plus the ledger `docs/compound/ENFORCED.md` if it exists (v0.8+).
+
+Skip `docs/compound/_archive/` (pruned by the writeback refresh) and `docs/compound/_drafts/` (not yet approved). Skip ADRs whose status is Superseded.
 
 **3. Inject a context summary** at the start of the agent's working memory:
 
@@ -43,11 +45,17 @@ Corrections (past mistakes, do not repeat):
 Patterns (approved approaches, reach for these by default):
 - {slug}: {one-line description, when to use}
 ...
+
+Enforced elsewhere (tests / lint / standards; the build will catch these):
+- {lesson} [{tier}: {guard}]
+...
 ```
+
+Ledger lessons get one line each and no more: their guard enforces them, so they need far less context than a store doc. Mark hook-enforced corrections `[hook]` and context-only ones (with `unenforceable_reason:`) `[judgement]` so the agent knows which ones only it can uphold.
 
 **4. Confirm to user**:
 
-*"Compound store loaded: {N} ADRs, {N} corrections, {N} patterns. Settled decisions will be respected; known corrections will be avoided; patterns will be reached for during the rest of this session."*
+*"Compound store loaded: {N} ADRs, {N} corrections, {N} patterns, {N} enforced-elsewhere lessons. Settled decisions will be respected; known corrections will be avoided; patterns will be reached for during the rest of this session."*
 
 ---
 

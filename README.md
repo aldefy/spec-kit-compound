@@ -1,6 +1,6 @@
 # spec-kit-compound
 
-[![Version](https://img.shields.io/badge/version-v0.7.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
+[![Version](https://img.shields.io/badge/version-v0.8.0-228be6)](https://github.com/aldefy/spec-kit-compound/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-495057)](LICENSE)
 [![Built for SpecKit](https://img.shields.io/badge/built_for-SpecKit-495057)](https://github.com/github/spec-kit)
 [![Project page](https://img.shields.io/badge/project_page-live-D71921)](https://aldefy.github.io/spec-kit-compound/)
@@ -49,6 +49,17 @@ The **compound store** (committed under `docs/compound/`) holds three things:
 | **Patterns** | Proven approaches for this codebase — *reach for these by default* |
 
 After 20 features the compound store has more applied wisdom than any constitution doc you could write up front — because it was derived from real work, not imagined ahead of time. SpecKit's `/speckit-constitution` is a one-time static document; the compound store is **living, growing**. That's the "compound" in compound engineering.
+
+**Notes are the weakest encoding (v0.8+).** Following Every's Compound Engineering 3.35.0 (`ce-compound` picks the strongest form for each learning), writeback no longer saves every lesson as markdown. Each one climbs an **encoding ladder** and lands on the highest rung that fits:
+
+| Rung | Encoding | Catches |
+|---|---|---|
+| 1 | Test or lint rule in your project, proven red on the mistake | Everyone, in CI |
+| 2 | Hook-enforced correction (`docs/compound/corrections/`) | The agent, before the Write lands |
+| 3 | One line in the constitution / `AGENTS.md` / `CLAUDE.md` | Any agent reading standards |
+| 4 | Store doc: ADR, pattern, context-only correction | Agents that run load |
+
+Every correction must ship a guard (rung 1 or 2) or say why it can't. Writeback then **refreshes** the store: a read-only scan flags superseded ADRs, duplicate or unguarded corrections, rules that match no files or fire on current code, and guards that have disappeared, and proposes archiving or merging them. The store grows in strength, not just size.
 
 ### ICE — Intent, Context, Expectations
 
@@ -124,7 +135,7 @@ For the full design rationale, see [`docs/ref.md`](docs/ref.md).
 | `/speckit-compound-gapfill` | After `tasks`, before `implement` | Appends missing constraint-violation, failure-condition, and edge tests to tasks.md |
 | `/speckit-compound-planverify` | After `gapfill`, before `implement` | L3 **plan** validation: judges the proposed plan + tasks vs intent scope *before* any code. Returns PASS / REPLAN_ALLOWED / BLOCKED_DRIFT. Independent checker; gate opt-in via `SKC_PLANVERIFY_GATE=block` |
 | `/speckit-compound-intentguard` | After `implement`, before merge | L3 validation: diff vs intent scope. Returns PASS / REVIEW / BLOCKED |
-| `/speckit-compound-writeback` | After intentguard PASS | Persists new ADRs, corrections, and patterns back to the compound store |
+| `/speckit-compound-writeback` | After intentguard PASS | Encodes each lesson at the strongest rung that fits (test/lint > hook correction > standards line > store doc), then refreshes the store (archives stale, duplicate, superseded entries). `writeback refresh` runs only the refresh |
 
 ### Two infrastructure commands
 
@@ -369,6 +380,7 @@ A ✗ per step means that step was skipped or didn't write its artifact — type
 |---|---|---|---|
 | **L1** | User types `/speckit-specify` | SpecKit `before_specify` gate refuses without an intent doc | v0.2.2 |
 | **L2** | Agent attempts Write/Edit | Claude Code `PreToolUse` hook refuses on correction match | v0.3 |
+| **CI** | Anyone runs the tests / linter | Rung-1 lessons from writeback: regression tests and lint rules in your own suite, listed in `docs/compound/ENFORCED.md` | v0.8 |
 
 L2 catches everything L1 catches, **plus** everything L1 misses (the user who skips SpecKit entirely and codes directly with the agent).
 
@@ -409,6 +421,13 @@ See [`docs/compound/CORRECTIONS-SCHEMA.md`](docs/compound/CORRECTIONS-SCHEMA.md)
 
 Tracked direction beyond v0.3.
 
+### v0.9 — guidance and a small-work path
+
+More ports from Every's Compound Engineering 3.35.0:
+
+- **`/speckit-compound-help`** — reads the stage state the dashboard already derives (intent, expectations, tasks, planverify and intentguard verdicts) and names the next command to run.
+- **Lite path for small work** — a short intent with no expectations, gapfill, or planverify, still followed by intentguard and writeback. Needs a size rule and a matching bypass in `require-intent`.
+
 ### v0.3.1+ — sibling tool-level gates
 
 Other 3 hook designs from `docs/hooks-research.md`:
@@ -447,7 +466,7 @@ For the tool-level gates. The bash hook scripts themselves are CLI-agnostic; onl
 
 ### Other
 
-- **Pre-v0.3 correction migration helper** — one-shot command that walks existing corrections and prompts the user to add the v0.3+ frontmatter (`paths:`, `match:`, `rule:`, `context:`). Out-of-scope for v0.3 per the intent doc; revisit when there's real volume of pre-v0.3 corrections in the wild.
+- **Pre-v0.3 correction migration helper** — partly covered in v0.8: the writeback refresh flags every pre-v0.3 correction as `no-guard` and proposes upgrading it. A bulk one-shot command that walks existing corrections and prompts the user to add the v0.3+ frontmatter (`paths:`, `match:`, `rule:`, `context:`). Out-of-scope for v0.3 per the intent doc; revisit when there's real volume of pre-v0.3 corrections in the wild.
 - **SpecKit Friends listing + extension catalog submission** — after 2–3 successful real-feature runs.
 
 ### Open architecture questions (resolve before v0.4)

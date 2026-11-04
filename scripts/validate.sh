@@ -216,6 +216,36 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Section 9: encoding ladder + store refresh (v0.8)
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "v0.8 encoding ladder + refresh"
+
+if [ -x scripts/compound_refresh.py ]; then
+  pass "scripts/compound_refresh.py is executable"
+else
+  fail "scripts/compound_refresh.py missing or not executable"
+fi
+
+if python3 scripts/compound_refresh.py --json >/dev/null 2>&1; then
+  pass "refresh scan runs against this repo's own store"
+else
+  fail "refresh scan errors on this repo (python3 scripts/compound_refresh.py)"
+fi
+
+if grep -q "encoding ladder" commands/speckit.compound.writeback.md; then
+  pass "writeback documents the encoding ladder"
+else
+  fail "writeback is missing the encoding ladder"
+fi
+
+if bash tests/correction-hook.test.sh >/dev/null 2>&1; then
+  pass "correction hook test suite passes"
+else
+  fail "correction hook test suite fails (bash tests/correction-hook.test.sh)"
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 echo ""

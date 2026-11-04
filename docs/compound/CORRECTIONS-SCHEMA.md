@@ -42,6 +42,15 @@ context: "Past mistake: filter: brightness(0.8) on img was used to dim images in
 | `rule` | yes | string | One-line directive shown in the hook's stderr block message under "Rule:". This is what the agent will read and adjust its plan around. Keep it imperative and short. |
 | `context` | yes | string | One-line background shown under "Context:". Tell the agent *why* the rule exists — past incident, performance trap, policy reason. |
 
+### Optional fields (v0.8+)
+
+| Field | Type | Meaning |
+|---|---|---|
+| `guarded_by` | string (repo path, optionally `::test_name`) | A rung-1 guard (test or lint rule) that also enforces this correction in CI. The hook still fires; the guard catches humans too. |
+| `unenforceable_reason` | string | Declares a **context-only** correction: nothing can check it mechanically (e.g. naming judgement). Replaces the four enforcement fields. The hook skips it silently; `/speckit-compound-load` still loads it, marked `[judgement]`. |
+
+From v0.8, `/speckit-compound-writeback` requires **every correction to ship a guard**: either the four enforcement fields (hook) and/or a rung-1 test or lint rule, or an explicit `unenforceable_reason`. The refresh scan (`scripts/compound_refresh.py`) reports corrections with neither as `no-guard`.
+
 **All four frontmatter fields are required for the correction to be enforced.** A correction missing any field will be loaded as context (for human readers) but skipped by the hook with a warning to stderr (failure condition F12 of the active-corrections intent).
 
 ---

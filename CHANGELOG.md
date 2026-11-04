@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] — 2026-11-04
+
+Writeback stops treating every lesson as a markdown note. Each lesson is encoded at the strongest level that fits, and every writeback ends by pruning the store. Ported from Every's Compound Engineering 3.35.0 (`ce-compound` choosing how to encode a learning, and `ce-compound-refresh` folded into it).
+
+### Added
+
+- **Encoding ladder in `/speckit-compound-writeback`.** Each lesson lands on the highest rung that fits: **(1)** a test or lint rule in the project's own suite, **(2)** a hook-enforced correction, **(3)** one line in the constitution / `AGENTS.md` / `CLAUDE.md`, **(4)** a store doc (ADR, pattern, context-only correction). A rung-1 guard must be shown failing on the mistaken code and passing on the fix before it counts. ADRs are still always written as docs (they are the decision history) and gain an `Enforced by` line.
+- **Corrections must ship a guard.** A correction lands on rung 1 or 2, or declares `unenforceable_reason:` in its frontmatter. Optional `guarded_by:` links a correction to a rung-1 test. Both are documented in `CORRECTIONS-SCHEMA.md`.
+- **Enforcement ledger `docs/compound/ENFORCED.md`.** Rung-1 and rung-3 lessons leave no store doc, so each gets a ledger row (lesson, tier, guard path, feature, date). `/speckit-compound-load` lists them one line each under "Enforced elsewhere".
+- **Store refresh, built into writeback.** New read-only scanner `scripts/compound_refresh.py` (stdlib Python) reports `superseded` ADRs, `dup-rule` / `no-guard` / `dead-paths` / `fires-on-tree` / `bad-regex` corrections, `stale-guard` ledger rows, and `dead-example` patterns. Writeback proposes archive / merge / upgrade / fix for each, approved one by one. Pruned files move to `docs/compound/_archive/` with `git mv`; nothing is deleted. `/speckit-compound-writeback refresh` runs only this step.
+- **Tests.** `tests/test_refresh.py` (16 cases for the scanner) and `tests/correction-hook.test.sh` (first test suite for the active-corrections hook). Both run from `scripts/validate.sh`.
+
+### Changed
+
+- **Active-corrections hook skips context-only corrections quietly.** A correction with `unenforceable_reason:` was previously reported on every Write/Edit as "incomplete frontmatter"; it is now skipped without a warning. Corrections that are genuinely malformed still warn (F12).
+- **`/speckit-compound-load`** skips `_archive/`, `_drafts/`, and Superseded ADRs, reads the ledger, and tags corrections `[hook]` or `[judgement]`.
+
 ## [0.7.0] — 2026-07-23
 
 The dashboard's master pane becomes a **triage surface**: features on a shared branch are grouped into progress-derived swimlanes, searchable and sortable, so a developer can pick up work a teammate started — the multi-developer half of the compound workflow the dashboard was missing.

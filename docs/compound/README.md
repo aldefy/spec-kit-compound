@@ -12,8 +12,26 @@ Every feature contributes back via `/speckit-compound-writeback`. Every feature 
 docs/compound/
 ├── adr/           ← Architecture Decision Records (settled decisions)
 ├── corrections/   ← AI correction notes (past mistakes and derived rules)
-└── patterns/      ← Approved patterns (proven approaches for this codebase)
+├── patterns/      ← Approved patterns (proven approaches for this codebase)
+├── ENFORCED.md    ← Ledger of lessons encoded as tests / lint rules / standards lines (v0.8+)
+├── _archive/      ← Entries pruned by the writeback refresh (ignored by load + hook)
+└── _drafts/       ← Deferred writeback drafts (not loaded)
 ```
+
+### The encoding ladder (v0.8+)
+
+A markdown note is the weakest way to keep a lesson. `/speckit-compound-writeback` puts each lesson on the highest rung that fits:
+
+1. **Test or lint rule** in the project itself (catches humans and agents, in CI)
+2. **Hook-enforced correction** in `corrections/` (blocks the agent's Write/Edit)
+3. **Standards line** in the constitution / `AGENTS.md` / `CLAUDE.md`
+4. **Store doc** (ADR, pattern, or context-only correction)
+
+Rungs 1 and 3 leave no store doc, so they get a row in `ENFORCED.md`. ADRs are always written as docs: they are the decision history.
+
+### Refresh
+
+Every writeback ends with a read-only scan (`scripts/compound_refresh.py`) for superseded ADRs, duplicate or unguarded corrections, rules that fire on current code or match no files, ledger guards that no longer exist, and dead pattern examples. Proposed fixes are approved one by one; pruned entries move to `_archive/` with `git mv`, never deleted. Run `/speckit-compound-writeback refresh` to do only this step.
 
 ### `adr/`
 
@@ -32,6 +50,7 @@ Captured during `/speckit-implement` when the user pushes back on the agent. Eac
 - Date-prefixed slug: `2026-06-02-no-css-filters.md`
 - "What happened" — the exchange, verbatim if possible
 - "Derived rule" — the one-line lesson to avoid repeat
+- Frontmatter guard: the v0.3+ hook fields, a `guarded_by:` test, or an `unenforceable_reason:` (v0.8+, see `CORRECTIONS-SCHEMA.md`)
 
 Corrections auto-capture without user approval (because the correction was already made by the user). They are reviewed at writeback time and can be promoted to ADRs if they describe a durable principle rather than a one-off.
 
@@ -57,8 +76,9 @@ Patterns require explicit user approval at writeback; they are the most opiniona
 
 [feature work happens — intent, plan, implement, intentguard]
 
-/speckit-compound-writeback             →  drafts new ADRs/corrections/patterns from session
-                                            user approves each, accepted ones land here
+/speckit-compound-writeback             →  encodes each lesson on the highest ladder rung
+                                            (test/lint > hook correction > standards > doc),
+                                            user approves each, then refreshes the store
                                             (at the end of every feature, after intentguard PASS)
 ```
 

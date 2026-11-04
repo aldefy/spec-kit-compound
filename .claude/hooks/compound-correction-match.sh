@@ -141,6 +141,12 @@ for CORR in "${CORRECTION_FILES[@]}"; do
   RULE=$(echo "$FM" | grep -E "^rule:" | sed -E 's/^rule:[[:space:]]*//' | sed -E 's/^"(.*)"$/\1/' | sed -E "s/^'(.*)'\$/\1/")
   CONTEXT=$(echo "$FM" | grep -E "^context:" | sed -E 's/^context:[[:space:]]*//' | sed -E 's/^"(.*)"$/\1/' | sed -E "s/^'(.*)'\$/\1/")
 
+  # v0.8: a context-only correction declares why nothing can check it.
+  # It is loaded as context but deliberately not matched, so skip it quietly.
+  if echo "$FM" | grep -Eq "^unenforceable_reason:[[:space:]]*[^[:space:]]"; then
+    continue
+  fi
+
   # F12: warn on malformed (must have all four required fields)
   if [ -z "$PATHS" ] || [ -z "$MATCH_REGEX" ] || [ -z "$RULE" ] || [ -z "$CONTEXT" ]; then
     WARNINGS+=("compound-correction-match: $CORR has incomplete frontmatter (need: paths, match, rule, context); skipping")
