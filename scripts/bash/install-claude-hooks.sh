@@ -149,3 +149,19 @@ if [ "$INSTALL_PV" = "1" ]; then
   echo "Then a source-file Write/Edit is blocked when the latest /speckit.compound.planverify"
   echo "verdict is missing or BLOCKED_DRIFT. Doc/spec writes are never blocked."
 fi
+
+# v0.8: user-level skill copies shadow this project's installed skills.
+# Claude Code resolves ~/.claude/skills/<name> before .claude/skills/<name>,
+# so a stale global copy silently replaces the version this install provides.
+STALE=""
+for d in "$HOME"/.claude/skills/speckit-compound-*; do
+  [ -d "$d" ] && STALE="$STALE $(basename "$d")"
+done
+if [ -n "$STALE" ]; then
+  echo ""
+  echo "⚠ Stale user-level skill copies found in ~/.claude/skills/:"
+  for n in $STALE; do echo "    $n"; done
+  echo "  They override this project's .claude/skills/ versions, so /speckit-compound-*"
+  echo "  commands run the OLD prompts. Remove them to use the installed version:"
+  echo "    rm -rf ~/.claude/skills/speckit-compound-*"
+fi

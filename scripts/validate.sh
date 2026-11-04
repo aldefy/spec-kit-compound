@@ -216,6 +216,49 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Section 9: encoding ladder + store refresh (v0.8)
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "v0.8 encoding ladder + refresh"
+
+if [ -x scripts/compound_refresh.py ]; then
+  pass "scripts/compound_refresh.py is executable"
+else
+  fail "scripts/compound_refresh.py missing or not executable"
+fi
+
+if python3 scripts/compound_refresh.py --json >/dev/null 2>&1; then
+  pass "refresh scan runs against this repo's own store"
+else
+  fail "refresh scan errors on this repo (python3 scripts/compound_refresh.py)"
+fi
+
+if grep -q "encoding ladder" commands/speckit.compound.writeback.md; then
+  pass "writeback documents the encoding ladder"
+else
+  fail "writeback is missing the encoding ladder"
+fi
+
+WB=commands/speckit.compound.writeback.md
+if grep -q '^\$ARGUMENTS$' "$WB" && grep -q "Step 0" "$WB"; then
+  pass "writeback reads \$ARGUMENTS and dispatches refresh mode in step 0"
+else
+  fail "writeback must take \$ARGUMENTS and route 'refresh' in a step 0 (live run ignored the mode)"
+fi
+
+if grep -q "Mandatory: never skip this step" "$WB" && grep -q "Why not a higher rung" "$WB"; then
+  pass "writeback forces the refresh scan and a per-lesson rung table"
+else
+  fail "writeback lost the mandatory refresh or the per-lesson rung table"
+fi
+
+if bash tests/correction-hook.test.sh >/dev/null 2>&1; then
+  pass "correction hook test suite passes"
+else
+  fail "correction hook test suite fails (bash tests/correction-hook.test.sh)"
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 echo ""
