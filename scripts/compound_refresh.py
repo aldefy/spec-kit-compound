@@ -117,8 +117,23 @@ def glob_match(path, pattern):
 
 
 # ── checks ──────────────────────────────────────────────────────
+def in_scope(path, patterns, own):
+    """Repo file is guarded by a correction's paths globs.
+
+    Store docs are excluded (their prose quotes the very snippets corrections
+    forbid) unless a glob explicitly targets the store, e.g. a correction about
+    other corrections' frontmatter. The correction never scopes itself.
+    """
+    if path == own:
+        return False
+    for p in patterns:
+        if glob_match(path, p):
+            if not path.startswith(STORE + "/") or p.startswith(STORE + "/"):
+                return True
+    return False
+
+
 def check_corrections(root, files, findings):
-    code_files = [f for f in files if not f.startswith(STORE + "/")]
     seen_match, seen_rule = {}, {}
 
     for rel in md_files(root, "corrections"):
@@ -145,7 +160,7 @@ def check_corrections(root, files, findings):
             else:
                 table[value] = rel
 
-        scoped = [f for f in code_files if any(glob_match(f, p) for p in paths)]
+        scoped = [f for f in files if in_scope(f, paths, rel)]
         if not scoped:
             findings.append(f_("dead-paths", rel, "paths match no file: " + ", ".join(paths)))
             continue
@@ -155,7 +170,8 @@ def check_corrections(root, files, findings):
             findings.append(f_("bad-regex", rel, f"grep -E rejects: {match}"))
             continue
         bypass = f"compound-allow: {slug}"
-        live = [h for h in hits if bypass not in read(os.path.join(root, h))]
+        live = [first_line(root, regex=match, rel=h)
+                for h in hits if bypass not in read(os.path.join(root, h))]
         if live:
             findings.append(f_("fires-on-tree", rel, "matches " + ", ".join(live[:5])
                                + (f" (+{len(live) - 5} more)" if len(live) > 5 else "")))
@@ -183,6 +199,14 @@ def grep_e(root, regex, files):
     return hits
 
 
+def first_line(root, regex, rel):
+    """'path:N' for the first matching line, so a human can triage the hit."""
+    r = subprocess.run(["grep", "-E", "-n", "-m1", "-e", regex, "--", rel],
+                       cwd=root, capture_output=True, text=True)
+    n = r.stdout.split(":", 1)[0]
+    return f"{rel}:{n}" if n.isdigit() else rel
+
+
 def check_adrs(root, findings):
     for rel in md_files(root, "adr"):
         text = read(os.path.join(root, rel))
@@ -206,11 +230,22 @@ def check_ledger(root, findings):
             findings.append(f_("stale-guard", rel, f"{cells[0]} → {guard} missing"))
 
 
-def check_patterns(root, findings):
+def example_exists(root, path, files):
+    """A pattern example path resolves if it exists from the root, or if it is
+    shorthand for a deeper file: a trailing partial path (ui/components/X.kt)
+    or a '...' elision (app/src/test/.../X.kt)."""
+    if os.path.exists(os.path.join(root, path)):
+        return True
+    parts = [re.escape(p) for p in path.strip("/").split("/...")]
+    rx = re.compile(r"(^|/)" + r"(/.+)?".join(parts) + r"/?$")
+    return any(rx.search(f) for f in files)
+
+
+def check_patterns(root, files, findings):
     for rel in md_files(root, "patterns"):
         body = section(read(os.path.join(root, rel)), "Examples in this repo")
         for path in re.findall(r"`([^`\s]+)`", body):
-            if "/" in path and not os.path.exists(os.path.join(root, path)):
+            if "/" in path and not example_exists(root, path, files):
                 findings.append(f_("dead-example", rel, f"{path} missing"))
 
 
@@ -222,10 +257,11 @@ def scan(root):
     findings = []
     if not os.path.isdir(os.path.join(root, STORE)):
         return findings
-    check_corrections(root, repo_files(root), findings)
+    files = repo_files(root)
+    check_corrections(root, files, findings)
     check_adrs(root, findings)
     check_ledger(root, findings)
-    check_patterns(root, findings)
+    check_patterns(root, files, findings)
     return findings
 
 

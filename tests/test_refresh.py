@@ -115,7 +115,7 @@ class RefreshScanTest(unittest.TestCase):
               correction("2026-01-01-no-filter", ["**/*.css"], "filter:[[:space:]]*brightness"))
         found = self.scan()
         self.assertEqual(self.kinds(found), ["fires-on-tree"])
-        self.assertIn("src/app.css", found[0]["detail"])
+        self.assertIn("src/app.css:1", found[0]["detail"])
 
     def test_compound_allow_bypass_is_respected(self):
         write(self.root, "src/app.css",
@@ -176,6 +176,45 @@ class RefreshScanTest(unittest.TestCase):
         found = self.scan()
         self.assertEqual(self.kinds(found), ["dead-example"])
         self.assertIn("gone.intent.md", found[0]["detail"])
+
+    def test_pattern_shorthand_paths_resolve_against_repo(self):
+        # seen in a real store: examples cite partial paths and '...' elisions
+        write(self.root, "app/src/main/java/in/x/ui/components/Card.kt", "x\n")
+        write(self.root, "app/src/test/java/in/x/ui/components/CardTest.kt", "x\n")
+        write(self.root, "docs/compound/patterns/p.md", """
+            # Pattern: p
+
+            ## Examples in this repo
+            - `ui/components/Card.kt` — mapper
+            - `app/src/test/.../ui/components/CardTest.kt` (cases)
+            - `app/src/test/.../ui/components/GoneTest.kt` (cases)
+        """)
+        found = self.scan()
+        self.assertEqual(self.kinds(found), ["dead-example"])
+        self.assertIn("GoneTest.kt", found[0]["detail"])
+
+    # ── corrections that target the store itself ────────────────
+    def test_correction_scoped_to_store_is_not_dead(self):
+        # seen in a real store: a correction guarding other corrections' frontmatter
+        write(self.root, "src/a.kt", "x\n")
+        write(self.root, "docs/compound/corrections/2026-01-01-escapes.md",
+              correction("2026-01-01-escapes", ["docs/compound/corrections/*.md"],
+                         "^match: .*BADESC", rule="No doubled escapes."))
+        write(self.root, "docs/compound/corrections/2026-01-02-other.md",
+              correction("2026-01-02-other", ["**/*.kt"], "GlobalScope", rule="No GlobalScope."))
+        self.assertEqual(self.scan(), [])
+
+    def test_store_scoped_correction_still_fires_on_other_corrections(self):
+        write(self.root, "src/a.kt", "x\n")
+        write(self.root, "docs/compound/corrections/2026-01-01-escapes.md",
+              correction("2026-01-01-escapes", ["docs/compound/corrections/*.md"],
+                         "^rule: .*FORBIDDEN"))
+        write(self.root, "docs/compound/corrections/2026-01-02-other.md",
+              correction("2026-01-02-other", ["**/*.kt"], "GlobalScope",
+                         rule="FORBIDDEN word here"))
+        found = self.scan()
+        self.assertEqual(self.kinds(found), ["fires-on-tree"])
+        self.assertIn("2026-01-02-other.md", found[0]["detail"])
 
     # ── archive is ignored ──────────────────────────────────────
     def test_archive_and_drafts_are_ignored(self):

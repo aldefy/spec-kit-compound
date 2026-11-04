@@ -132,7 +132,7 @@ It reports findings of these kinds. Propose one action for each and ask the user
 | `superseded` | ADR marked Superseded still in `adr/` | **archive** it (the superseding ADR carries the rule) |
 | `dup-rule` | Two corrections share a regex or rule | **merge** into the older slug, keep both `paths:` sets, archive the newer |
 | `no-guard` | Correction has no frontmatter and no `unenforceable_reason` | **upgrade**: climb the ladder for it now (rung 1 or 2), or add the reason |
-| `fires-on-tree` | Correction's regex matches current code | Either the code is violating the rule (fix it or add `compound-allow`) or the rule is stale (**archive**). Ask which. |
+| `fires-on-tree` | Correction's regex matches current code (reported as `file:line`) | Read the line, then ask which of three it is: **live violation** (fix the code, or add `compound-allow: <slug>` if intended), **regex too broad** (it hits correct code such as a comment explaining the rule, or the sanctioned wrapper itself; **tighten** `match:` or narrow `paths:`, because the hook will otherwise block the agent from rewriting that file), or **stale rule** (**archive**). |
 | `dead-paths` | Correction's globs match no file | The code it guarded is gone: **archive**, unless it is a deliberate sample |
 | `bad-regex` | `grep -E` rejects the regex | **fix** the regex (POSIX ERE, see the schema doc) |
 | `stale-guard` | Ledger row's guard file no longer exists | Ask whether the guard moved (**update** the row) or was dropped (**re-encode** the lesson or delete the row) |
