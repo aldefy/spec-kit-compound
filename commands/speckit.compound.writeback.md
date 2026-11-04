@@ -4,6 +4,21 @@ description: "Persist learnings from the just-completed feature, each encoded at
 
 # Writeback to Compound Store
 
+## User input
+
+```text
+$ARGUMENTS
+```
+
+## Step 0 — pick the mode (do this first, before reading anything else)
+
+The text the user typed after the command is in **User input** above (if `$ARGUMENTS` appears literally, use the text from the triggering message instead).
+
+- If it is **`refresh`** (or starts with it): run **REFRESH-ONLY mode**. Do **not** scan the session or git history for lessons, do **not** draft or write any ADR, correction, pattern, test, or standards line, and skip the intent guard check. Go straight to **step 7**, then give the step 9 summary with the lesson counts reported as "refresh only". Nothing else.
+- Otherwise: run the **full writeback**, steps 1 to 9, in order.
+
+State the mode in your first line of output: *"Writeback mode: full"* or *"Writeback mode: refresh-only"*.
+
 After `/speckit-compound-intentguard` returns PASS (or REVIEW NEEDED that a human has cleared), you persist the learnings of this feature so the next feature is easier. This is what makes the system compound.
 
 Two rules shape everything below (v0.8+):
@@ -75,9 +90,23 @@ For every candidate, decide its rung and draft the encoding:
 
 **Every mistake must ship a guard.** A correction candidate lands on rung 1 or 2. It may only fall to rung 3–4 with a one-line `unenforceable_reason:` in its frontmatter saying why nothing can check it (e.g. *"naming judgement; no syntactic form"*). The refresh scan flags corrections that have neither a guard nor a reason.
 
-**4. Present drafts to the user.**
+**4. Present the ladder table, then each draft.**
 
-Show each draft **with its chosen rung and the evidence** (test red→green output, grep dry-run, or why lower rungs were needed). Ask per draft (AskUserQuestion):
+First, show one table with **one row per lesson** (not one row per file type):
+
+```markdown
+| # | Lesson | Kind | Rung | Why not a higher rung |
+|---|---|---|---|---|
+| 1 | change_log entityId must be the surrogate id | mistake | 1 test | — |
+| 2 | dates asserted off a UTC string | mistake | 4 doc | rung 1: no single call site to test; rung 2: too many spellings for one regex |
+| 3 | BFF is single-user, self-hosted | decision | 4 ADR | ADRs are always docs; Rule for AI enforced by: not enforceable (product decision) |
+```
+
+The **Why not a higher rung** column is required for every row below rung 1. "It's a correction" or "it's a pattern" is not a reason: every *mistake* starts as a rung-1 candidate, and a test is the default for any bug that was found and fixed (it already has a failing input: the bug).
+
+Then show each draft **with its rung and the evidence** (test red→green output, grep dry-run, or the reason it dropped a rung).
+
+Ask **per lesson**, not per file type: do not batch "Which ADRs / Which corrections / Which patterns" into multi-select questions, because that hides the rung choice. Several lessons may share one AskUserQuestion call, but each lesson is its own question. Options:
 - **accept**: write it as drafted
 - **change rung**: move it up or down the ladder, then redraft
 - **edit**: adjust inline, then write
@@ -115,9 +144,9 @@ Append one row per lesson:
 
 `Tier` is `test`, `lint`, or `standards`. `Guard` is a repo-relative path, optionally `::name` for a specific test.
 
-**7. Refresh the store.**
+**7. Refresh the store. Mandatory: never skip this step**, including when no lessons were written, when the user rejected every draft, or when the intent guard check was waived.
 
-Run the read-only scanner from the project root:
+Run the read-only scanner from the project root, and show its output **verbatim** to the user:
 
 ```bash
 python3 .specify/extensions/compound/scripts/compound_refresh.py
@@ -144,6 +173,14 @@ Also check, by reading rather than scanning: a correction or pattern whose rule 
 
 If the scan reports zero findings, say so in one line and move on.
 
+**Before you finish (full mode): self-check.** Answer each line; if any answer is "no", go back and fix it before summarizing:
+
+- [ ] Every *mistake* lesson is on rung 1 or 2, **or** its correction file has an `unenforceable_reason:` frontmatter field (prose saying "context only" does not count).
+- [ ] Every rung-1 guard was run and seen **failing** on the mistaken form and **passing** on the current code.
+- [ ] Every rung-1 and rung-3 lesson has a row in `docs/compound/ENFORCED.md`.
+- [ ] Every new ADR has an `Enforced by` section.
+- [ ] Step 7 ran and you showed the scanner's output. Re-run it after writing: anything **you** just wrote must produce no findings.
+
 **8. Update intent doc status.**
 
 In `docs/intents/{slug}.intent.md`, change the frontmatter:
@@ -154,7 +191,7 @@ completed: {YYYY-MM-DD}
 
 **9. Summary.**
 
-*"Writeback complete. Encoded {N} lessons: {N} tests, {N} lint rules, {N} hook corrections, {N} standards lines, {N} store docs ({N} ADRs, {N} patterns). Refresh: {N} findings, {N} archived, {N} merged, {N} upgraded. Intent `{slug}` marked completed. Store: {N} ADRs / {N} corrections / {N} patterns / {N} ledger rows."*
+*"Writeback complete. Encoded {N} lessons: {N} tests, {N} lint rules, {N} hook corrections, {N} standards lines, {N} store docs ({N} ADRs, {N} patterns). Refresh: "{scanner's first output line, verbatim}"; {N} archived, {N} merged, {N} upgraded, {N} kept. Intent `{slug}` marked completed. Store: {N} ADRs / {N} corrections / {N} patterns / {N} ledger rows."*
 
 ---
 
@@ -232,7 +269,7 @@ For a context-only correction, replace the four enforcement fields with `unenfor
 
 When invoked as an `after_implement` hook, this command runs only AFTER `/speckit-compound-intentguard` has produced a verdict. The hook is `optional: true`: the user is prompted *"Writeback learnings from this feature? [yes / no]"*. If yes, run the full flow above. If no, skip cleanly.
 
-To run **only the refresh** (e.g. on a schedule or in an automation), invoke `/speckit-compound-writeback refresh`: skip steps 1–6 and 8, run step 7, then summarize.
+To run **only the refresh** (e.g. on a schedule or in an automation), invoke `/speckit-compound-writeback refresh`; step 0 routes it.
 
 ---
 

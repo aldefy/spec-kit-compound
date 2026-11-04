@@ -239,6 +239,19 @@ else
   fail "writeback is missing the encoding ladder"
 fi
 
+WB=commands/speckit.compound.writeback.md
+if grep -q '^\$ARGUMENTS$' "$WB" && grep -q "Step 0" "$WB"; then
+  pass "writeback reads \$ARGUMENTS and dispatches refresh mode in step 0"
+else
+  fail "writeback must take \$ARGUMENTS and route 'refresh' in a step 0 (live run ignored the mode)"
+fi
+
+if grep -q "Mandatory: never skip this step" "$WB" && grep -q "Why not a higher rung" "$WB"; then
+  pass "writeback forces the refresh scan and a per-lesson rung table"
+else
+  fail "writeback lost the mandatory refresh or the per-lesson rung table"
+fi
+
 if bash tests/correction-hook.test.sh >/dev/null 2>&1; then
   pass "correction hook test suite passes"
 else
