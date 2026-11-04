@@ -259,6 +259,36 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────
+# Section 10: help + lite path (v0.9)
+# ─────────────────────────────────────────────────────────────────
+echo ""
+echo "v0.9 help + lite path"
+
+if [ -x scripts/compound_next.py ] && python3 scripts/compound_next.py --json >/dev/null 2>&1; then
+  pass "scripts/compound_next.py runs against this repo"
+else
+  fail "scripts/compound_next.py missing, not executable, or errors"
+fi
+
+if grep -q '^\$ARGUMENTS$' commands/speckit.compound.intent.md && grep -q "size: lite" commands/speckit.compound.intent.md; then
+  pass "intent takes \$ARGUMENTS and documents the lite path"
+else
+  fail "intent is missing \$ARGUMENTS or the lite path"
+fi
+
+if grep -q "size: lite" commands/speckit.compound.intentguard.md && grep -q "pv_active_lite" scripts/bash/planverify-lib.sh; then
+  pass "intentguard and the planverify gates accept lite features"
+else
+  fail "intentguard or the planverify gates do not handle lite features"
+fi
+
+if bash tests/planverify-gate.test.sh >/dev/null 2>&1; then
+  pass "planverify gate test suite passes (incl. lite)"
+else
+  fail "planverify gate test suite fails (bash tests/planverify-gate.test.sh)"
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
 echo ""

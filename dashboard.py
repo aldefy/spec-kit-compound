@@ -327,7 +327,7 @@ def _compute_states(stages):
     seen_pending = False
     for name in STAGES:
         st = stages[name]
-        if st["state"] == "done":
+        if st["state"] in ("done", "skipped"):
             continue
         if not seen_pending:
             st["state"] = "current"
@@ -424,7 +424,12 @@ def _store_latest_mtime(repo_root):
     return latest
 
 
-def scan_state(repo_root, now=None, home=None):
+# v0.9 lite path: a `size: lite` intent goes intent -> implement -> intentguard
+# -> writeback; these stages are skipped, not pending.
+LITE_SKIPPED = ("expectations", "specify", "plan", "tasks", "gapfill", "planverify")
+
+
+def scan_state(repo_root, now=None, home=None, include_heavy=True):
     repo_root = os.path.abspath(repo_root)
     if home is None:
         home = os.path.expanduser("~")
@@ -512,7 +517,21 @@ def scan_state(repo_root, now=None, home=None):
             # re-run tasks.md) correctly stays "pending" until writeback runs.
             "writeback": done(os.path.isfile(guard_path) and store_mtime > tasks_mtime),
         }
-        stages["tasks"].update(done=task_counts["done"], total=task_counts["total"])
+        size = "lite" if str(fm.get("size", "")).lower() == "lite" else "full"
+        if size == "lite":
+            for _s in LITE_SKIPPED:
+                stages[_s] = {"state": "skipped"}
+            # No tasks.md: implementation is finished once the guard has judged it.
+            # Writeback is done when it marked the intent completed (its last step,
+            # which makes the intent newer than the store), or when the store has
+            # a file newer than the guard verdict.
+            has_guard = os.path.isfile(guard_path)
+            stages["implement"] = done(has_guard)
+            stages["writeback"] = done(has_guard and (
+                str(fm.get("status", "")).lower() == "completed"
+                or store_mtime > os.path.getmtime(guard_path)))
+        if size == "full":
+            stages["tasks"].update(done=task_counts["done"], total=task_counts["total"])
         stages["intentguard"]["verdict"] = guard_verdict
         stages["intentguard"]["drift"] = guard_parsed["drift"]
         stages["planverify"]["verdict"] = planverify_verdict
@@ -594,6 +613,7 @@ def scan_state(repo_root, now=None, home=None):
 
         features.append({
             "slug": slug,
+            "size": size,
             "status": fm.get("status", ""),
             "created": fm.get("created", ""),
             "spec_dir": rel_spec,
@@ -623,7 +643,7 @@ def scan_state(repo_root, now=None, home=None):
         p = os.path.join(repo_root, "docs/compound", sub)
         return sorted(os.path.basename(x) for x in glob.glob(os.path.join(p, "*.md"))) if os.path.isdir(p) else []
 
-    return {
+    state = {
         "scanned_at": now or "",
         "repo": os.path.basename(repo_root),
         "stages": STAGES,
@@ -631,9 +651,11 @@ def scan_state(repo_root, now=None, home=None):
         "features": features,
         "orphan_specs": orphan_specs,
         "compound": {"adr": _ls("adr"), "corrections": _ls("corrections"), "patterns": _ls("patterns"), "search_text": _compound_search_text(repo_root)},
-        "tokens": scan_tokens(home, repo_root),
-        "diff": scan_diff(repo_root),
     }
+    if include_heavy:
+        state["tokens"] = scan_tokens(home, repo_root)
+        state["diff"] = scan_diff(repo_root)
+    return state
 
 
 def _project_slug(repo_root):
@@ -765,7 +787,7 @@ header{display:flex;justify-content:space-between;align-items:center;
 .minibar{display:flex;gap:2px;margin-top:11px}
 .minibar i{flex:1;height:4px;background:var(--border)}
 .minibar i.done{background:var(--t-display)} .minibar i.current{background:var(--success)}
-.minibar i.blocked{background:var(--accent)}
+.minibar i.blocked{background:var(--accent)} .minibar i.skipped{opacity:.25}
 .statetxt{font-family:var(--mono);font-size:calc(10px * var(--fs));letter-spacing:.06em;text-transform:uppercase}
 .statetxt.pass{color:var(--success)} .statetxt.blocked{color:var(--accent)}
 .statetxt.review{color:var(--warning)} .statetxt.none{color:var(--t-disabled)}
@@ -826,6 +848,7 @@ header{display:flex;justify-content:space-between;align-items:center;
 .stage:disabled{cursor:default}
 .stage .blk{height:10px;background:var(--border);transition:background .2s ease-out}
 .stage.done .blk{background:var(--t-display)}
+.stage.skipped{opacity:.35} .stage.skipped .cap{text-decoration:line-through}
 .stage.current .blk{background:var(--success);animation:wip 1.3s ease-in-out infinite}
 @keyframes wip{0%,100%{opacity:1}50%{opacity:.35}}
 .stage.blocked .blk{background:var(--accent)}
@@ -1012,7 +1035,7 @@ function groupFeatures(features, opts){
 
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function human(n){return n>=1e6?(n/1e6).toFixed(2)+"M":n>=1e3?(n/1e3).toFixed(0)+"K":String(n);}
-function stageCls(st){return st.state==="done"?"done":st.state==="current"?"current":st.state==="blocked"?"blocked":"";}
+function stageCls(st){return st.state==="done"?"done":st.state==="current"?"current":st.state==="blocked"?"blocked":st.state==="skipped"?"skipped":"";}
 
 function guardChip(feat){
   const g=feat.stages.intentguard;
@@ -1021,7 +1044,7 @@ function guardChip(feat){
   if(g.verdict) return ['review',g.verdict];
   return ['none','NOT VALIDATED'];
 }
-function doneCount(feat){ return STATE.stages.filter(n=>feat.stages[n].state==="done").length; }
+function doneCount(feat){ return STATE.stages.filter(n=>feat.stages[n].state==="done"||feat.stages[n].state==="skipped").length; }
 
 /* ── master ── */
 function renderMaster(){
@@ -1073,7 +1096,7 @@ function renderMaster(){
       h+=`<div class="feat ${f.slug===SEL?'sel':''}" data-slug="${esc(f.slug)}">
         <div class="name">${dot}${esc(f.slug)}${badge}</div>
         <div class="minibar">${bars}</div>
-        <div class="meta"><span class="statetxt ${ck}">${ctxt}</span>${t.total>0?`<span class="lbl lbl-dim">${t.done}/${t.total} TASKS</span>`:''}</div>
+        <div class="meta"><span class="statetxt ${ck}">${ctxt}</span>${t.total>0?`<span class="lbl lbl-dim">${t.done}/${t.total} TASKS</span>`:''}${f.size==='lite'?'<span class="lbl lbl-dim">LITE</span>':''}</div>
       </div>`;
     });
   });

@@ -1,8 +1,44 @@
 ---
-description: "Interview-driven intent capture: goal, constraints, and failure conditions. Refuses to terminate until every quality test (G1-G5, C1-C5, F1-F4) passes."
+description: "Interview-driven intent capture: goal, constraints, and failure conditions. Refuses to terminate until every quality test (G1-G5, C1-C5, F1-F4) passes. 'lite' runs a short interview for small work that skips expectations, spec, plan, tasks, gapfill and planverify (v0.9+)."
 ---
 
 # Intent Interview
+
+## User input
+
+```text
+$ARGUMENTS
+```
+
+## Step 0 — full or lite? (decide before anything else)
+
+If the user input starts with **`lite`**, the user wants the **lite path** for small work (v0.9+). Otherwise run the full interview below and ignore this section.
+
+**Lite eligibility.** Ask these four questions in one AskUserQuestion call (yes / no each). Lite is allowed only if **all four** are "yes":
+
+1. Will it touch **3 files or fewer**?
+2. **No new dependency** (library, service, permission)?
+3. **No change to a schema, API contract, persisted format, or public interface**?
+4. **No new module, screen, or entry point**?
+
+Any "no": say which answer rules lite out, then run the **full** interview. Do not negotiate the rule; small work that changes a contract is not small.
+
+**Lite interview.** Run Phases 1, 3, 4, 5 and 6 below, with these limits:
+- **Goal**: all of G1–G5 still apply; a lite intent is short, not vague.
+- **In scope / Out of scope**: at least one item each. Out of scope matters most here, because nothing downstream will catch scope creep before the diff.
+- **Constraints**: **one or more** (not three to five), each passing C1–C5.
+- **Failure conditions**: **one or more**, each passing F1–F4.
+- Skip Phase 2 (why now).
+
+Write the file with the normal format plus `size: lite` in the frontmatter, and the `## Test record` line `Path: lite (4/4 eligibility)`.
+
+**Lite chain.** A lite feature skips expectations, `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, gapfill and planverify (the planverify gate lets the newest active lite intent through). Instead of the Phase 8 handoff, tell the user:
+
+*"Lite intent written. Implement the change directly, then run `/speckit-compound-intentguard` (it judges the diff against this intent alone) and `/speckit-compound-writeback`."*
+
+If during implementation the change grows past the four eligibility answers, stop and re-run `/speckit-compound-intent` without `lite`.
+
+---
 
 You are running an **intent interview**. Your job is to extract a complete, high-quality intent document from the user through a question-and-answer dialogue, applying a strict quality rubric. You do not write the file or hand off to the next phase until every test passes.
 
@@ -197,6 +233,7 @@ If `docs/compound/` exists and was loaded:
 slug: {kebab-case-slug}
 status: active
 created: {YYYY-MM-DD}
+size: {full | lite}
 ---
 
 # Intent: {goal sentence}

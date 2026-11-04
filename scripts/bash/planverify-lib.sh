@@ -42,3 +42,14 @@ pv_latest_verdict() {
   [ -z "$latest" ] && { echo ""; return; }
   grep -E '^verdict:' "$latest" | head -1 | sed -E 's/^verdict:[[:space:]]*//' | tr -d ' \r'
 }
+
+# v0.9 lite path: echoes "lite" when the most recently modified ACTIVE intent
+# declares `size: lite` (no plan exists to verify), else "". A completed lite
+# intent, or a newer active full intent, does not unlock the gate.
+pv_active_lite() {
+  local root="$1" newest
+  newest="$(grep -l -E '^status:[[:space:]]*active' "$root"/docs/intents/*.intent.md 2>/dev/null \
+            | xargs ls -t 2>/dev/null | head -1)"
+  [ -z "$newest" ] && { echo ""; return; }
+  grep -qE '^size:[[:space:]]*lite[[:space:]]*$' "$newest" && echo "lite" || echo ""
+}

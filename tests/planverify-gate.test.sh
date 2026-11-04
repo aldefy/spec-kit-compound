@@ -73,5 +73,22 @@ assert_eq "$(run_hook src/foo.ts SKC_PLANVERIFY_GATE=block)" 0 "hook: block + PA
 set_verdict BLOCKED_DRIFT
 assert_eq "$(run_hook src/foo.ts SKC_PLANVERIFY_GATE=block COMPOUND_BYPASS=1)" 0 "hook: COMPOUND_BYPASS overrides block"
 
+echo "# v0.9 lite path"
+clear_verdict
+lite_intent() { printf -- '---\nslug: %s\nstatus: %s\nsize: %s\n---\n# Intent\n' "$1" "$2" "$3" > "$WORK/docs/intents/$1.intent.md"; }
+# 15. block + no report + newest active intent is lite -> allow (gate + hook)
+lite_intent fix-typo active lite
+assert_eq "$(run_gate SKC_PLANVERIFY_GATE=block)" 0 "gate: block + active lite intent => allow"
+assert_eq "$(run_hook src/foo.ts SKC_PLANVERIFY_GATE=block)" 0 "hook: block + active lite intent => allow source write"
+# 16. a completed lite intent does not unlock the gate
+lite_intent fix-typo completed lite
+assert_eq "$(run_hook src/foo.ts SKC_PLANVERIFY_GATE=block)" 2 "hook: completed lite intent => still deny"
+# 17. newest active intent is full -> lite elsewhere does not unlock
+lite_intent fix-typo active lite
+sleep 1
+lite_intent big-feature active full
+assert_eq "$(run_hook src/foo.ts SKC_PLANVERIFY_GATE=block)" 2 "hook: newest active intent full => deny"
+rm -f "$WORK"/docs/intents/*.intent.md
+
 echo "---"
 [ "$FAILS" -eq 0 ] && { echo "ALL PASS"; exit 0; } || { echo "$FAILS FAILED"; exit 1; }
