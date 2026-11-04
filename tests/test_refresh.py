@@ -93,6 +93,30 @@ class RefreshScanTest(unittest.TestCase):
         """)
         self.assertEqual(self.scan(), [])
 
+    def test_guarded_by_test_only_is_a_guard(self):
+        # rung 1 without a hook regex: seen in a real store (upsert clobbers)
+        write(self.root, "tests/DbTest.kt", "x\n")
+        write(self.root, "docs/compound/corrections/2026-01-01-upsert.md", """
+            ---
+            slug: 2026-01-01-upsert
+            guarded_by: tests/DbTest.kt::upsertPreservesStatus
+            ---
+            # Correction: upsert
+        """)
+        self.assertEqual(self.scan(), [])
+
+    def test_guarded_by_missing_file_is_stale_guard(self):
+        write(self.root, "docs/compound/corrections/2026-01-01-upsert.md", """
+            ---
+            slug: 2026-01-01-upsert
+            guarded_by: tests/GoneTest.kt::x
+            ---
+            # Correction: upsert
+        """)
+        found = self.scan()
+        self.assertEqual(self.kinds(found), ["stale-guard"])
+        self.assertIn("tests/GoneTest.kt", found[0]["detail"])
+
     # ── R: dup-rule ─────────────────────────────────────────────
     def test_duplicate_match_is_flagged_on_both(self):
         write(self.root, "src/a.css", "a{}\n")

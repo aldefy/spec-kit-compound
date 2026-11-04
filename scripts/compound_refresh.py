@@ -7,13 +7,13 @@ and the writeback command proposes archive / merge / upgrade actions for the
 human to approve.
 
 Finding kinds:
-  no-guard       correction has no enforceable frontmatter and no unenforceable_reason
+  no-guard       correction has no hook frontmatter, no guarded_by, and no unenforceable_reason
   dup-rule       two corrections share the same match regex or the same rule text
   dead-paths     correction's paths globs match no file in the repo
   fires-on-tree  correction's regex matches current code (stale rule or live violation)
   bad-regex      correction's match is not a valid grep -E pattern
   superseded     ADR marked Superseded is still in adr/ (archive it)
-  stale-guard    ENFORCED.md ledger points at a guard file that no longer exists
+  stale-guard    ENFORCED.md row or a correction's guarded_by points at a missing file
   dead-example   pattern's "Examples in this repo" cites a path that no longer exists
 
 Usage:
@@ -141,9 +141,14 @@ def check_corrections(root, files, findings):
         if fm is None:
             findings.append(f_("no-guard", rel, "no frontmatter (pre-v0.3, context-only)"))
             continue
+        guard = fm.get("guarded_by")
+        if isinstance(guard, str) and guard:
+            path = guard.split("::")[0].strip()
+            if not os.path.exists(os.path.join(root, path)):
+                findings.append(f_("stale-guard", rel, f"guarded_by {path} missing"))
         missing = [k for k in ENFORCEABLE if not fm.get(k)]
         if missing:
-            if not fm.get("unenforceable_reason"):
+            if not fm.get("unenforceable_reason") and not guard:
                 findings.append(f_("no-guard", rel, "missing " + ", ".join(missing)))
             continue
 

@@ -54,6 +54,17 @@ EOF
 R="$(run_hook src/a.css 'img { color: red }')"
 assert_eq "$R" "0|" "unenforceable_reason correction is skipped without warning"
 
+echo "# test-guarded correction (v0.8 guarded_by, no hook regex)"
+cat > "$C/2026-01-04-tested.md" <<'EOT'
+---
+slug: 2026-01-04-tested
+guarded_by: tests/DbTest.kt::upsertPreservesStatus
+---
+# Correction
+EOT
+R="$(run_hook src/a.css 'img { color: red }')"
+assert_eq "$R" "0|" "guarded_by-only correction is skipped without warning"
+
 echo "# malformed correction still warns (F12)"
 cat > "$C/2026-01-03-broken.md" <<'EOF'
 ---

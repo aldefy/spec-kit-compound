@@ -147,6 +147,12 @@ for CORR in "${CORRECTION_FILES[@]}"; do
     continue
   fi
 
+  # v0.8: guarded at rung 1 only (a test or lint rule, no hook regex). The test
+  # enforces it in CI; nothing for this hook to match, so skip it quietly too.
+  if [ -z "$MATCH_REGEX" ] && echo "$FM" | grep -Eq "^guarded_by:[[:space:]]*[^[:space:]]"; then
+    continue
+  fi
+
   # F12: warn on malformed (must have all four required fields)
   if [ -z "$PATHS" ] || [ -z "$MATCH_REGEX" ] || [ -z "$RULE" ] || [ -z "$CONTEXT" ]; then
     WARNINGS+=("compound-correction-match: $CORR has incomplete frontmatter (need: paths, match, rule, context); skipping")

@@ -19,6 +19,7 @@ Writeback stops treating every lesson as a markdown note. Each lesson is encoded
 - **Tests.** `tests/test_refresh.py` (19 cases for the scanner) and `tests/correction-hook.test.sh` (first test suite for the active-corrections hook). Both run from `scripts/validate.sh`.
 
 - **`install-hooks` warns about stale user-level skills.** Claude Code resolves `~/.claude/skills/<name>` before a project's `.claude/skills/<name>`, so an old global `speckit-compound-*` copy silently replaces the installed version. In live testing a June copy shadowed v0.8 in every project, and writeback ran the old prompt. The installer now lists such copies and prints the `rm` command.
+- **`guarded_by:` alone is a complete guard.** A correction enforced only by a test (the mistake is an absence, e.g. a missing column in `ON CONFLICT`) no longer shows as `no-guard` in the scan or warns from the hook; the scan reports `stale-guard` if the test file disappears. Found when a live refresh had to use `unenforceable_reason` to point at an existing test.
 - **Regex recipe for ignoring comments** in `CORRECTIONS-SCHEMA.md`: `^[[:space:]]*([^*/[:space:]][^`]*)?TOKEN`, with the dry-run loop. The optional prefix matters: an agent-tightened regex in a real store dropped the `?` and stopped catching lines that start with the token.
 
 ### Changed

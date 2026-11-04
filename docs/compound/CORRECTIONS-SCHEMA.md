@@ -46,7 +46,7 @@ context: "Past mistake: filter: brightness(0.8) on img was used to dim images in
 
 | Field | Type | Meaning |
 |---|---|---|
-| `guarded_by` | string (repo path, optionally `::test_name`) | A rung-1 guard (test or lint rule) that also enforces this correction in CI. The hook still fires; the guard catches humans too. |
+| `guarded_by` | string (repo path, optionally `::test_name`) | A rung-1 guard (test or lint rule) that enforces this correction in CI. Alongside the four hook fields, the hook still fires and the test catches humans too. **On its own** (no hook fields) it is a complete guard: use it when the mistake is an *absence* no regex can see (a missing column, a missing check). The hook skips it quietly; the refresh scan reports `stale-guard` if the file disappears. Prefer this over `unenforceable_reason` whenever a test exists. |
 | `unenforceable_reason` | string | Declares a **context-only** correction: nothing can check it mechanically (e.g. naming judgement). Replaces the four enforcement fields. The hook skips it silently; `/speckit-compound-load` still loads it, marked `[judgement]`. |
 
 From v0.8, `/speckit-compound-writeback` requires **every correction to ship a guard**: either the four enforcement fields (hook) and/or a rung-1 test or lint rule, or an explicit `unenforceable_reason`. The refresh scan (`scripts/compound_refresh.py`) reports corrections with neither as `no-guard`.
