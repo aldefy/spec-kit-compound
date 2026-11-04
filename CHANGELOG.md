@@ -18,6 +18,9 @@ Writeback stops treating every lesson as a markdown note. Each lesson is encoded
 - **Tested against real stores.** Before release the scanner ran read-only on four downstream projects (up to 57 intents / 28 store entries). That surfaced and fixed two false positives: pattern examples cited as shorthand paths (`ui/components/X.kt`, `app/src/test/.../X.kt`) now resolve against the repo, and a correction whose `paths:` explicitly target the store (e.g. one guarding other corrections' frontmatter) is no longer reported as `dead-paths`. `fires-on-tree` now reports `file:line`, and writeback offers a third resolution, **regex too broad**: several real rules matched the KDoc comments explaining them, which would block the agent from rewriting those files.
 - **Tests.** `tests/test_refresh.py` (19 cases for the scanner) and `tests/correction-hook.test.sh` (first test suite for the active-corrections hook). Both run from `scripts/validate.sh`.
 
+- **`install-hooks` warns about stale user-level skills.** Claude Code resolves `~/.claude/skills/<name>` before a project's `.claude/skills/<name>`, so an old global `speckit-compound-*` copy silently replaces the installed version. In live testing a June copy shadowed v0.8 in every project, and writeback ran the old prompt. The installer now lists such copies and prints the `rm` command.
+- **Regex recipe for ignoring comments** in `CORRECTIONS-SCHEMA.md`: `^[[:space:]]*([^*/[:space:]][^`]*)?TOKEN`, with the dry-run loop. The optional prefix matters: an agent-tightened regex in a real store dropped the `?` and stopped catching lines that start with the token.
+
 ### Changed
 
 - **Active-corrections hook skips context-only corrections quietly.** A correction with `unenforceable_reason:` was previously reported on every Write/Edit as "incomplete frontmatter"; it is now skipped without a warning. Corrections that are genuinely malformed still warn (F12).

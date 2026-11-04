@@ -96,6 +96,26 @@ Three rules of thumb:
 
 ---
 
+
+### Recipe: ignore comments that mention the forbidden token (v0.8+)
+
+A correction's own explanation often lives in a KDoc or `//` comment that names the forbidden call ("`Dispatchers.IO` does not exist on Native"). A bare `Dispatchers[.]IO` then matches that comment, the refresh scan reports `fires-on-tree`, and the hook blocks the agent from ever rewriting the file. Skip comment lines and backtick-quoted mentions with:
+
+```text
+^[[:space:]]*([^*/[:space:]][^`]*)?Dispatchers[.]IO
+```
+
+The prefix group must be **optional** (`(...)?`). Without the `?`, a line that *starts* with the token (`    Dispatchers.IO,` or `Dispatchers.IO.limitedParallelism(4)`) slips through. This bug shipped in a real store before it was caught. Dry-run both sides before committing:
+
+```bash
+R='^[[:space:]]*([^*/[:space:]][^`]*)?Dispatchers[.]IO'
+for s in '    Dispatchers.IO,' 'val io = Dispatchers.IO' ' * `Dispatchers.IO` is JVM-only' '// Dispatchers.IO'; do
+  printf '%-36s ' "$s"; echo "$s" | grep -Eq "$R" && echo BLOCK || echo pass
+done
+```
+
+Expected: BLOCK, BLOCK, pass, pass.
+
 ## Writing a good `rule:` and `context:`
 
 The agent reads these. Write for the agent:
